@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { GeneratedPuzzle, PrintSettings, PlacedWord, WordItem, PuzzleSettings } from '../types';
 import { generatePuzzle } from '../utils/wordSearchGenerator';
-import { Printer, Check, Copy, Shuffle, FileSpreadsheet, KeyRound, UserCheck } from 'lucide-react';
+import { Printer, Shuffle, Copy, Sliders, CheckSquare, Square, FileText } from 'lucide-react';
 
 interface Props {
   puzzle: GeneratedPuzzle;
@@ -10,19 +10,21 @@ interface Props {
 }
 
 export const PrintSheet: React.FC<Props> = ({ puzzle, rawWords, settings }) => {
-  // Pengaturan cetak dengan opsi default otomatis sesuai brief
+  // Pengaturan cetak
   const [printSettings, setPrintSettings] = useState<PrintSettings>({
     layout: '1_per_page',
     twoPuzzleMode: 'different',
+    cellScale: 1.0, // 0.85 (kecil) - 1.0 (sedang) - 1.15 (besar)
+    fontSize: 'medium',
     includeAnswerKey: false,
-    includeNameClass: true, // Otomatis aktif
+    includeNameClass: true, // Default aktif
   });
 
   // Puzzle kedua jika mode "Dua puzzle berbeda" dipilih
   const secondPuzzle = useMemo(() => {
     if (printSettings.layout !== '2_per_page') return null;
     if (printSettings.twoPuzzleMode === 'duplicate') return puzzle;
-    return generatePuzzle(puzzle.title, puzzle.description, rawWords, settings);
+    return generatePuzzle(puzzle.title, rawWords, settings);
   }, [puzzle, rawWords, settings, printSettings.layout, printSettings.twoPuzzleMode]);
 
   // Peta sel kata untuk kunci jawaban
@@ -43,33 +45,43 @@ export const PrintSheet: React.FC<Props> = ({ puzzle, rawWords, settings }) => {
   );
 
   /**
-   * Menghitung otomatis ukuran kotak huruf dan ukuran font berdasarkan ukuran kertas A4
-   * dan dimensi grid agar pas sempurna dan tidak pernah bertumpuk.
+   * Menghitung ukuran sel dan font agar pas presisi di kertas A4
    */
-  const getAutoDimensions = (gridSize: number, isTwoPerPage: boolean) => {
+  const getCellDimensions = (gridSize: number, isTwoPerPage: boolean) => {
+    let baseMm = 7.2;
     if (isTwoPerPage) {
-      // Pada 2 per lembar, tinggi panel maks ~130mm, area grid ~80-84mm
-      if (gridSize <= 12) {
-        return { cellMm: 6.4, fontSizePt: '8.5pt', wordListFontPt: '8pt', maxRows: 6 };
-      } else if (gridSize <= 15) {
-        return { cellMm: 5.4, fontSizePt: '7.5pt', wordListFontPt: '7.5pt', maxRows: 8 };
-      } else {
-        return { cellMm: 4.6, fontSizePt: '6.5pt', wordListFontPt: '7pt', maxRows: 10 };
-      }
+      if (gridSize <= 12) baseMm = 5.8;
+      else if (gridSize <= 15) baseMm = 4.8;
+      else baseMm = 4.1;
     } else {
-      // Pada 1 per lembar, ruang sangat leluasa
-      if (gridSize <= 12) {
-        return { cellMm: 8.8, fontSizePt: '11pt', wordListFontPt: '9.5pt', maxRows: 8 };
-      } else if (gridSize <= 15) {
-        return { cellMm: 7.4, fontSizePt: '10pt', wordListFontPt: '9pt', maxRows: 10 };
-      } else {
-        return { cellMm: 6.2, fontSizePt: '8.5pt', wordListFontPt: '8.5pt', maxRows: 10 };
-      }
+      if (gridSize <= 12) baseMm = 8.6;
+      else if (gridSize <= 15) baseMm = 7.2;
+      else baseMm = 6.0;
     }
+
+    const finalCellMm = Number((baseMm * printSettings.cellScale).toFixed(2));
+
+    // Skala ukuran font
+    let fontPt = isTwoPerPage ? 7.5 : 10;
+    if (printSettings.fontSize === 'small') fontPt -= 1;
+    if (printSettings.fontSize === 'large') fontPt += 1.5;
+
+    let wordListFontPt = isTwoPerPage ? 7 : 8.5;
+    if (printSettings.fontSize === 'small') wordListFontPt -= 0.5;
+    if (printSettings.fontSize === 'large') wordListFontPt += 1;
+
+    return {
+      cellMm: finalCellMm,
+      fontSizePt: `${fontPt}pt`,
+      wordListFontPt: `${wordListFontPt}pt`,
+    };
   };
 
   /**
-   * Render satu panel puzzle (Daftar Kata diletakkan di SAMPING kotak pencarian)
+   * Render satu panel puzzle:
+   * Dari atas: Judul (tebal), baris "Nama: ........ Kelas: ........" (jika aktif),
+   * lalu grid huruf di kiri dan "Daftar Kata" dalam 1 KOLOM KE BAWAH di kanannya,
+   * dan footer di bawah. Tanpa deskripsi!
    */
   const renderPuzzlePanel = (
     puz: GeneratedPuzzle,
@@ -77,45 +89,36 @@ export const PrintSheet: React.FC<Props> = ({ puzzle, rawWords, settings }) => {
     isAnswerKey = false,
     answerMap?: Map<string, string> | null
   ) => {
-    const { cellMm, fontSizePt, wordListFontPt } = getAutoDimensions(puz.size, isTwoPerPage);
+    const { cellMm, fontSizePt, wordListFontPt } = getCellDimensions(puz.size, isTwoPerPage);
 
     return (
       <div
         className={`print-panel flex flex-col justify-between overflow-hidden bg-white text-black ${
-          isTwoPerPage ? 'h-[131mm] max-h-[131mm] p-2' : 'h-[275mm] max-h-[275mm] py-4 px-5'
+          isTwoPerPage ? 'h-[132mm] max-h-[132mm] p-2' : 'h-[275mm] max-h-[275mm] py-3 px-4'
         }`}
         style={{ boxSizing: 'border-box' }}
       >
-        {/* Bagian Atas: Judul, Deskripsi, dan Kolom Nama/Kelas */}
-        <div className="shrink-0">
+        {/* Atas: Judul (Tebal) & Baris Nama/Kelas */}
+        <div className="shrink-0 mb-1">
           <div className="text-center mb-1">
             <h2
               className={`font-bold tracking-tight text-black leading-tight ${
                 isTwoPerPage ? 'text-[11pt]' : 'text-[15pt]'
               }`}
             >
-              {puz.title}{' '}
+              {puz.title}
               {isAnswerKey && (
-                <span className="text-[9pt] font-semibold text-slate-700 ml-1">
+                <span className="text-[9pt] font-semibold text-slate-700 ml-1.5">
                   (KUNCI JAWABAN)
                 </span>
               )}
             </h2>
-            {puz.description && (
-              <p
-                className={`text-slate-700 italic mt-0.5 leading-snug line-clamp-1 ${
-                  isTwoPerPage ? 'text-[7.5pt]' : 'text-[9.5pt]'
-                }`}
-              >
-                {puz.description}
-              </p>
-            )}
           </div>
 
-          {/* Kolom Nama dan Kelas (Otomatis Ada) */}
+          {/* Kolom Nama dan Kelas (jika diaktifkan) */}
           {printSettings.includeNameClass && !isAnswerKey && (
             <div
-              className={`flex justify-between items-center border-b border-black pb-1 mb-2 font-mono ${
+              className={`flex justify-between items-center border-b border-black pb-1 mb-1.5 font-mono ${
                 isTwoPerPage ? 'text-[7.5pt]' : 'text-[9pt]'
               }`}
             >
@@ -126,9 +129,9 @@ export const PrintSheet: React.FC<Props> = ({ puzzle, rawWords, settings }) => {
           )}
         </div>
 
-        {/* Bagian Tengah: KOTAK HURUF & DAFTAR KATA DILAYOUT BERDAMPINGAN (SIDE-BY-SIDE) */}
-        <div className="flex-1 flex items-center justify-center gap-4 sm:gap-6 my-auto overflow-hidden">
-          {/* Kotak Huruf Grid (Sebelah Kiri) */}
+        {/* Tengah: Grid Huruf di KIRI dan Daftar Kata 1 KOLOM KE BAWAH di KANANNYA */}
+        <div className="flex-1 flex items-start justify-center gap-3 sm:gap-5 my-auto overflow-hidden">
+          {/* Grid Huruf (Sebelah Kiri) */}
           <div className="shrink-0 flex justify-center">
             <div
               className="inline-block border border-black bg-white"
@@ -160,46 +163,38 @@ export const PrintSheet: React.FC<Props> = ({ puzzle, rawWords, settings }) => {
             </div>
           </div>
 
-          {/* Daftar Kata (Sebelah Kanan Kotak Huruf) */}
+          {/* Daftar Kata: 1 KOLOM KE BAWAH (Sebelah Kanan Grid) */}
           <div
-            className={`flex-1 border border-black p-2 bg-white rounded-none self-stretch flex flex-col justify-between overflow-hidden ${
-              isTwoPerPage ? 'max-w-[78mm]' : 'max-w-[85mm]'
+            className={`border border-black p-2 bg-white flex flex-col justify-start overflow-hidden ${
+              isTwoPerPage ? 'w-[72mm] max-h-[96mm]' : 'w-[80mm] max-h-[170mm]'
             }`}
           >
-            <div>
-              <div
-                className={`font-bold uppercase tracking-wider text-black border-b border-black pb-1 mb-1.5 text-center ${
-                  isTwoPerPage ? 'text-[7.5pt]' : 'text-[9pt]'
-                }`}
-              >
-                DAFTAR KATA ({puz.placedWords.length})
-              </div>
-
-              {/* Kata dalam 2 kolom rapi tanpa saling bertumpuk */}
-              <div
-                className="grid grid-cols-2 gap-x-2 gap-y-1 font-mono leading-tight"
-                style={{ fontSize: wordListFontPt }}
-              >
-                {puz.placedWords.map((pw, idx) => (
-                  <div key={pw.word} className="flex items-center gap-1 truncate">
-                    <span className="w-2.5 h-2.5 border border-black inline-block shrink-0"></span>
-                    <span className="truncate">{pw.originalText}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <p
-              className={`text-slate-500 italic mt-1 text-center font-sans ${
-                isTwoPerPage ? 'text-[6.5pt]' : 'text-[7.5pt]'
+            <div
+              className={`font-bold uppercase tracking-wider text-black border-b border-black pb-0.5 mb-1 text-center ${
+                isTwoPerPage ? 'text-[7.5pt]' : 'text-[9pt]'
               }`}
             >
-              Cari & temukan kata di dalam kotak huruf
-            </p>
+              DAFTAR KATA ({puz.placedWords.length})
+            </div>
+
+            {/* 1 Kolom ke Bawah */}
+            <div
+              className="flex flex-col gap-0.5 font-mono leading-tight overflow-hidden"
+              style={{ fontSize: wordListFontPt }}
+            >
+              {puz.placedWords.map((pw, idx) => (
+                <div key={pw.word} className="flex items-center gap-1.5 truncate">
+                  <span className="w-2.5 h-2.5 border border-black inline-block shrink-0"></span>
+                  <span className="truncate">
+                    {idx + 1}. {pw.originalText}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Bagian Bawah: Footer persis sesuai brief */}
+        {/* Bawah: Footer persis sesuai brief */}
         <div className="shrink-0 mt-1 pt-1 border-t border-slate-200 text-center">
           <p className="text-[7pt] tracking-wide text-slate-600 font-medium">
             by : MGMP IPA KECAMATAN BENGKALIS
@@ -212,19 +207,18 @@ export const PrintSheet: React.FC<Props> = ({ puzzle, rawWords, settings }) => {
   return (
     <div>
       {/* 
-        Panel Pengaturan Cetak Berupa Tombol-Tombol Minimalis & Mudah Dipahami
-        (Hanya tampil di layar pratinjau, otomatis tersembunyi saat dicetak)
+        Panel Pengaturan Cetak (Hanya tampil di layar pratinjau)
+        Format tombol-tombol minimalis dan mudah dipahami
       */}
       <div className="no-print bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5 mb-6">
         <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
           <div>
-            <h3 className="text-base font-bold text-slate-900">Pengaturan Cetak Lembar A4</h3>
+            <h3 className="text-base font-bold text-slate-900">Pengaturan Lembar Cetak A4</h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Ukuran kotak dan huruf otomatis menyesuaikan halaman. Daftar kata diletakkan di samping kotak.
+              Margin 1 cm di semua sisi. Grid dan daftar kata 1 kolom berdampingan agar tidak bertumpuk.
             </p>
           </div>
 
-          {/* Tombol Utama Cetak */}
           <button
             onClick={() => window.print()}
             className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
@@ -234,110 +228,160 @@ export const PrintSheet: React.FC<Props> = ({ puzzle, rawWords, settings }) => {
           </button>
         </div>
 
-        {/* Grup Tombol Pengaturan Minimalis */}
-        <div className="flex flex-wrap items-center gap-4 pt-4 text-xs">
-          {/* 1. Tombol Pilihan Jumlah Puzzle per Lembar */}
-          <div className="flex items-center gap-1.5">
-            <span className="font-semibold text-slate-700 mr-1">Tata Letak:</span>
-            <div className="inline-flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+        {/* Kontrol Pengaturan Cetak */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-4 text-xs">
+          {/* 1. Tata Letak Lembar */}
+          <div>
+            <label className="block font-semibold text-slate-800 mb-1.5">
+              Tata Letak Lembar
+            </label>
+            <div className="inline-flex bg-slate-100 p-1 rounded-lg border border-slate-200 w-full">
               <button
                 type="button"
                 onClick={() => setPrintSettings(prev => ({ ...prev, layout: '1_per_page' }))}
-                className={`px-3 py-1.5 font-medium rounded-md transition-colors cursor-pointer ${
+                className={`flex-1 py-1.5 font-medium rounded-md transition-colors cursor-pointer text-center ${
                   printSettings.layout === '1_per_page'
                     ? 'bg-white text-slate-900 shadow-xs font-semibold'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                1 Puzzle per Lembar
+                1 Puzzle / Lembar
               </button>
               <button
                 type="button"
                 onClick={() => setPrintSettings(prev => ({ ...prev, layout: '2_per_page' }))}
-                className={`px-3 py-1.5 font-medium rounded-md transition-colors cursor-pointer ${
+                className={`flex-1 py-1.5 font-medium rounded-md transition-colors cursor-pointer text-center ${
                   printSettings.layout === '2_per_page'
                     ? 'bg-white text-slate-900 shadow-xs font-semibold'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                2 Puzzle per Lembar (Hemat Kertas)
+                2 Puzzle / Lembar
               </button>
             </div>
-          </div>
 
-          {/* 2. Tombol Variasi jika 2 Puzzle dipilih */}
-          {printSettings.layout === '2_per_page' && (
-            <div className="flex items-center gap-1.5">
-              <span className="font-semibold text-slate-700 mr-1">Isi 2 Puzzle:</span>
-              <div className="inline-flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+            {/* Opsi jika 2 puzzle per lembar */}
+            {printSettings.layout === '2_per_page' && (
+              <div className="mt-2.5 inline-flex bg-slate-100 p-1 rounded-lg border border-slate-200 w-full">
                 <button
                   type="button"
                   onClick={() => setPrintSettings(prev => ({ ...prev, twoPuzzleMode: 'different' }))}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 font-medium rounded-md transition-colors cursor-pointer ${
+                  className={`flex-1 py-1 font-medium rounded-md transition-colors cursor-pointer text-center text-[11px] ${
                     printSettings.twoPuzzleMode === 'different'
                       ? 'bg-white text-slate-900 shadow-xs font-semibold'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  <Shuffle className="w-3.5 h-3.5" />
                   2 Puzzle Berbeda
                 </button>
                 <button
                   type="button"
                   onClick={() => setPrintSettings(prev => ({ ...prev, twoPuzzleMode: 'duplicate' }))}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 font-medium rounded-md transition-colors cursor-pointer ${
+                  className={`flex-1 py-1 font-medium rounded-md transition-colors cursor-pointer text-center text-[11px] ${
                     printSettings.twoPuzzleMode === 'duplicate'
                       ? 'bg-white text-slate-900 shadow-xs font-semibold'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  <Copy className="w-3.5 h-3.5" />
                   2 Salinan Sama
                 </button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
-          {/* 3. Tombol Kolom Nama & Kelas */}
-          <div className="flex items-center gap-1.5">
+          {/* 2. Ukuran Fleksibel: Slider Ukuran Kotak & Pilihan Ukuran Huruf */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="font-semibold text-slate-800">
+                Ukuran Kotak Huruf
+              </label>
+              <span className="text-[11px] text-slate-500 font-mono">
+                {printSettings.cellScale < 0.95
+                  ? 'Kecil'
+                  : printSettings.cellScale > 1.05
+                  ? 'Besar'
+                  : 'Sedang'}
+              </span>
+            </div>
+            <input
+              type="range"
+              min="0.85"
+              max="1.15"
+              step="0.05"
+              value={printSettings.cellScale}
+              onChange={(e) =>
+                setPrintSettings(prev => ({ ...prev, cellScale: parseFloat(e.target.value) }))
+              }
+              className="w-full accent-blue-600 cursor-pointer"
+            />
+            <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
+              <span>Kecil</span>
+              <span>Sedang (Default)</span>
+              <span>Besar</span>
+            </div>
+
+            <div className="mt-2.5 flex items-center justify-between gap-2">
+              <span className="font-semibold text-slate-700">Ukuran Huruf:</span>
+              <div className="inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                {(['small', 'medium', 'large'] as const).map((sz) => (
+                  <button
+                    key={sz}
+                    type="button"
+                    onClick={() => setPrintSettings(prev => ({ ...prev, fontSize: sz }))}
+                    className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors cursor-pointer ${
+                      printSettings.fontSize === sz
+                        ? 'bg-white text-slate-900 shadow-xs font-semibold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {sz === 'small' ? 'Kecil' : sz === 'medium' ? 'Sedang' : 'Besar'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Opsi Tambahan: Kolom Siswa & Kunci Jawaban */}
+          <div className="space-y-2">
+            <label className="block font-semibold text-slate-800 mb-1">
+              Opsi Tambahan
+            </label>
             <button
               type="button"
               onClick={() =>
                 setPrintSettings(prev => ({ ...prev, includeNameClass: !prev.includeNameClass }))
               }
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer ${
                 printSettings.includeNameClass
-                  ? 'bg-blue-50 border-blue-200 text-blue-800 font-semibold'
+                  ? 'bg-blue-50 border-blue-200 text-blue-900 font-semibold'
                   : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
-              <UserCheck className="w-3.5 h-3.5" />
-              Kolom Nama & Kelas: {printSettings.includeNameClass ? 'Ada ✓' : 'Tidak Ada'}
+              <span>Kolom Nama & Kelas</span>
+              <span>{printSettings.includeNameClass ? 'Aktif ✓' : 'Nonaktif'}</span>
             </button>
-          </div>
 
-          {/* 4. Tombol Kunci Jawaban */}
-          <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={() =>
                 setPrintSettings(prev => ({ ...prev, includeAnswerKey: !prev.includeAnswerKey }))
               }
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer ${
                 printSettings.includeAnswerKey
                   ? 'bg-amber-50 border-amber-300 text-amber-900 font-semibold'
                   : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
-              <KeyRound className="w-3.5 h-3.5" />
-              Kunci Jawaban: {printSettings.includeAnswerKey ? 'Sertakan di Akhir ✓' : 'Tanpa Kunci'}
+              <span>Kunci Jawaban di Akhir</span>
+              <span>{printSettings.includeAnswerKey ? 'Sertakan ✓' : 'Tanpa Kunci'}</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* 
-        Pratinjau Lembar A4 di Layar & Tampilan Cetak Sebenarnya 
+        Pratinjau Lembar A4 di Layar & Dokumen Cetak Sebenarnya 
+        Margin 1 cm (10mm) di sekeliling halaman
       */}
       <div className="space-y-8">
         {/* Lembar Soal Siswa */}
@@ -350,7 +394,7 @@ export const PrintSheet: React.FC<Props> = ({ puzzle, rawWords, settings }) => {
               {renderPuzzlePanel(puzzle, true)}
 
               {/* Garis putus-putus untuk gunting pemisah dua puzzle */}
-              <div className="relative my-1 py-1 flex items-center justify-center shrink-0">
+              <div className="relative my-1 py-0.5 flex items-center justify-center shrink-0">
                 <div className="absolute inset-0 flex items-center">
                   <div className="w-full border-t border-dashed border-black cut-line"></div>
                 </div>
@@ -365,14 +409,14 @@ export const PrintSheet: React.FC<Props> = ({ puzzle, rawWords, settings }) => {
           )}
         </div>
 
-        {/* Lembar Kunci Jawaban (halaman terpisah jika diaktifkan) */}
+        {/* Lembar Kunci Jawaban (halaman terpisah jika dicentang) */}
         {printSettings.includeAnswerKey && (
           <div className="a4-preview-page print-page border border-slate-300 p-[10mm]">
             <div className="mb-2 text-center pb-1 border-b border-black">
-              <h2 className="text-base font-bold text-black uppercase tracking-wider">
+              <h2 className="text-sm font-bold text-black uppercase tracking-wider">
                 KUNCI JAWABAN PUZZLE CARI KATA
               </h2>
-              <p className="text-xs text-slate-600">MGMP IPA KECAMATAN BENGKALIS</p>
+              <p className="text-[10px] text-slate-600">MGMP IPA KECAMATAN BENGKALIS</p>
             </div>
 
             {printSettings.layout === '1_per_page' ? (

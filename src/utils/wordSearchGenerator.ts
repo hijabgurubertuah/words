@@ -41,7 +41,6 @@ export function shuffleArray<T>(array: T[]): T[] {
 
 export function generatePuzzle(
   title: string,
-  description: string,
   words: WordItem[],
   settings: PuzzleSettings
 ): GeneratedPuzzle {
@@ -193,7 +192,6 @@ export function generatePuzzle(
   return {
     id: 'puz_' + Math.random().toString(36).substring(2, 9),
     title,
-    description,
     grid: finalGrid,
     size,
     placedWords: bestResult!.placed,

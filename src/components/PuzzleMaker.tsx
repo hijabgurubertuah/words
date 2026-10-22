@@ -1,19 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { WordItem, PuzzleSettings } from '../types';
+import { Plus, X } from 'lucide-react';
 
 interface Props {
   initialTitle?: string;
-  initialDesc?: string;
   initialWords?: string[];
   initialSettings?: PuzzleSettings;
-  onSubmit: (title: string, desc: string, words: WordItem[], settings: PuzzleSettings) => void;
+  onSubmit: (title: string, words: WordItem[], settings: PuzzleSettings) => void;
 }
 
-const DRAFT_STORAGE_KEY = 'cari_kata_draft_v2';
+const DRAFT_STORAGE_KEY = 'cari_kata_draft_v3';
 
 export const PuzzleMaker: React.FC<Props> = ({
   initialTitle,
-  initialDesc,
   initialWords,
   initialSettings,
   onSubmit,
@@ -32,19 +31,13 @@ export const PuzzleMaker: React.FC<Props> = ({
   const draft = loadDraft();
 
   const [title, setTitle] = useState<string>(() => initialTitle ?? draft?.title ?? '');
-  const [desc, setDesc] = useState<string>(() => initialDesc ?? draft?.desc ?? '');
+
+  // Input kata: saat dibuka hanya tersedia 1 input kata, bertambah lewat "+ Tambah Kata"
   const [wordInputs, setWordInputs] = useState<string[]>(() => {
     if (initialWords && initialWords.length > 0) {
-      const arr = Array(30).fill('');
-      initialWords.forEach((w, i) => {
-        if (i < 30) arr[i] = w;
-      });
-      return arr;
+      return initialWords.slice(0, 30);
     }
-    if (draft?.words && Array.isArray(draft.words)) {
-      return draft.words;
-    }
-    return Array(30).fill('');
+    return ['']; // Default tepat 1 kata saat awal dibuka
   });
 
   const [settings, setSettings] = useState<PuzzleSettings>(() => {
@@ -65,15 +58,23 @@ export const PuzzleMaker: React.FC<Props> = ({
 
   // Error states
   const [titleErr, setTitleErr] = useState<string>('');
-  const [descErr, setDescErr] = useState<string>('');
   const [wordErrs, setWordErrs] = useState<string[]>(() => Array(30).fill(''));
   const [listErr, setListErr] = useState<string>('');
 
-  // Refs untuk scrolling ke error pertama
+  // Refs untuk scrolling dan fokus
   const titleInputRef = useRef<HTMLInputElement>(null);
-  const descInputRef = useRef<HTMLTextAreaElement>(null);
   const wordInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const listErrRef = useRef<HTMLDivElement>(null);
+  const pendingFocusIndexRef = useRef<number | null>(null);
+
+  // Fokus ke input baru setelah "+ Tambah Kata" diklik
+  useEffect(() => {
+    if (pendingFocusIndexRef.current !== null) {
+      const targetIndex = pendingFocusIndexRef.current;
+      wordInputRefs.current[targetIndex]?.focus();
+      pendingFocusIndexRef.current = null;
+    }
+  }, [wordInputs.length]);
 
   // Simpan draf ke localStorage (try/catch)
   useEffect(() => {
@@ -82,7 +83,6 @@ export const PuzzleMaker: React.FC<Props> = ({
         DRAFT_STORAGE_KEY,
         JSON.stringify({
           title,
-          desc,
           words: wordInputs,
           settings,
         })
@@ -90,8 +90,26 @@ export const PuzzleMaker: React.FC<Props> = ({
     } catch {
       // Abaikan jika localStorage dibatasi
     }
-  }, [title, desc, wordInputs, settings]);
+  }, [title, wordInputs, settings]);
 
+  // Tambah kata baru
+  const handleAddWord = () => {
+    if (wordInputs.length >= 30) return;
+    pendingFocusIndexRef.current = wordInputs.length;
+    setWordInputs(prev => [...prev, '']);
+    setWordErrs(prev => [...prev, '']);
+    if (listErr) setListErr('');
+  };
+
+  // Hapus kata
+  const handleRemoveWord = (index: number) => {
+    if (index === 0) return; // Baris pertama tidak bisa dihapus
+    setWordInputs(prev => prev.filter((_, idx) => idx !== index));
+    setWordErrs(prev => prev.filter((_, idx) => idx !== index));
+    if (listErr) setListErr('');
+  };
+
+  // Perubahan input kata
   const handleWordChange = (index: number, val: string) => {
     const updated = [...wordInputs];
     updated[index] = val;
@@ -107,8 +125,7 @@ export const PuzzleMaker: React.FC<Props> = ({
 
   const clearAllErrors = () => {
     setTitleErr('');
-    setDescErr('');
-    setWordErrs(Array(30).fill(''));
+    setWordErrs(Array(wordInputs.length).fill(''));
     setListErr('');
   };
 
@@ -122,8 +139,7 @@ export const PuzzleMaker: React.FC<Props> = ({
     let firstErrorElement: HTMLElement | null = null;
 
     let newTitleErr = '';
-    let newDescErr = '';
-    const newWordErrs = Array(30).fill('');
+    const newWordErrs = Array(wordInputs.length).fill('');
     let newListErr = '';
 
     // 1. Judul wajib diisi
@@ -136,17 +152,7 @@ export const PuzzleMaker: React.FC<Props> = ({
       }
     }
 
-    // 2. Deskripsi wajib diisi
-    const trimmedDesc = desc.trim();
-    if (!trimmedDesc) {
-      newDescErr = 'Deskripsi wajib diisi.';
-      hasError = true;
-      if (!firstErrorElement && descInputRef.current) {
-        firstErrorElement = descInputRef.current;
-      }
-    }
-
-    // 3. Kumpulkan kata terisi
+    // 2. Baris kata kosong diabaikan. Hitung hanya baris terisi.
     const filledIndices: number[] = [];
     const validWordItems: { idx: number; original: string; clean: string }[] = [];
 
@@ -214,7 +220,7 @@ export const PuzzleMaker: React.FC<Props> = ({
       }
     });
 
-    // 4. Kurang dari 10 kata terisi
+    // 3. Kurang dari 10 kata terisi
     if (filledIndices.length < 10) {
       newListErr = 'Isi minimal 10 kata.';
       hasError = true;
@@ -223,10 +229,9 @@ export const PuzzleMaker: React.FC<Props> = ({
       }
     }
 
-    // 6. Jika ada satu saja error, batalkan dan gulir ke error pertama
+    // 5. Jika ada satu saja error, batalkan dan gulir ke error pertama
     if (hasError) {
       setTitleErr(newTitleErr);
-      setDescErr(newDescErr);
       setWordErrs(newWordErrs);
       setListErr(newListErr);
 
@@ -244,15 +249,15 @@ export const PuzzleMaker: React.FC<Props> = ({
       clean: item.clean,
     }));
 
-    // Beri jeda kecil agar tombol nonaktif sebentar saat puzzle dibuat
+    // Nonaktifkan tombol sebentar saat puzzle dibuat
     setTimeout(() => {
       setIsSubmitting(false);
-      onSubmit(trimmedTitle, trimmedDesc, finalWords, settings);
+      onSubmit(trimmedTitle, finalWords, settings);
     }, 250);
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-3xl mx-auto px-4 py-8">
       {/* 1. Judul Halaman */}
       <div className="mb-6 text-center sm:text-left">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
@@ -265,8 +270,8 @@ export const PuzzleMaker: React.FC<Props> = ({
 
       <section id="maker" className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 sm:p-8">
         <form onSubmit={handleSubmit} noValidate>
-          {/* 2. Judul */}
-          <div id="mTitle" className="mb-5">
+          {/* 2. Judul (Tanpa kolom deskripsi!) */}
+          <div id="mTitle" className="mb-6">
             <label htmlFor="puzzleTitleInput" className="block text-sm font-semibold text-slate-900 mb-1.5">
               Judul
             </label>
@@ -283,7 +288,7 @@ export const PuzzleMaker: React.FC<Props> = ({
               }}
               placeholder="Contoh: Sistem Pencernaan Manusia, Tata Surya"
               className={`
-                w-full px-3.5 py-2 text-sm text-slate-900 bg-white border rounded-lg 
+                w-full px-3.5 py-2.5 text-sm text-slate-900 bg-white border rounded-lg 
                 shadow-2xs transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500
                 ${titleErr ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-300 hover:border-slate-400'}
               `}
@@ -293,42 +298,14 @@ export const PuzzleMaker: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* 3. Deskripsi */}
-          <div id="mDesc" className="mb-6">
-            <label htmlFor="puzzleDescInput" className="block text-sm font-semibold text-slate-900 mb-1.5">
-              Deskripsi
-            </label>
-            <textarea
-              id="puzzleDescInput"
-              ref={descInputRef}
-              rows={3}
-              value={desc}
-              aria-describedby={descErr ? 'descError' : undefined}
-              aria-invalid={Boolean(descErr)}
-              onChange={(e) => {
-                setDesc(e.target.value);
-                if (descErr) setDescErr('');
-              }}
-              placeholder="Berikan petunjuk atau pengantar tema materi bagi siswa..."
-              className={`
-                w-full px-3.5 py-2 text-sm text-slate-900 bg-white border rounded-lg 
-                shadow-2xs transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500
-                ${descErr ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-300 hover:border-slate-400'}
-              `}
-            />
-            <div id="descError" className="fErr">
-              {descErr}
-            </div>
-          </div>
-
-          {/* 4 & 5. Daftar Kata (30 baris) */}
+          {/* 3 & 4. Label Daftar Kata + Teks Bantu + Input 1 Kolom ke Bawah */}
           <div id="mWords" className="mb-6">
             <div className="flex items-center justify-between mb-1">
               <label className="block text-sm font-semibold text-slate-900">
                 Daftar Kata
               </label>
               <span className="text-xs font-mono text-slate-500">
-                {filledCount} dari 30 terisi {filledCount >= 10 ? '✓' : '(minimal 10)'}
+                {filledCount} kata terisi {filledCount >= 10 ? '✓' : '(minimal 10)'}
               </span>
             </div>
 
@@ -337,8 +314,8 @@ export const PuzzleMaker: React.FC<Props> = ({
               Isi 10 sampai 30 kata. Puzzle dibuat secara acak memakai sebagian kata dari daftar Anda.
             </p>
 
-            {/* 30 kolom input kata (2 atau 3 kolom di layar lebar, 1 di layar kecil) */}
-            <div id="wordlist" className="wordlist grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+            {/* Daftar input kata: 1 kolom ke bawah di semua ukuran layar */}
+            <div id="wordlist" className="wordlist flex flex-col gap-2.5">
               {wordInputs.map((val, idx) => {
                 const rowId = `wrd${idx}`;
                 const errorId = `err_${rowId}`;
@@ -346,30 +323,46 @@ export const PuzzleMaker: React.FC<Props> = ({
 
                 return (
                   <div key={rowId} id={rowId} className="word">
-                    <div className="relative">
-                      <span className="absolute left-2.5 top-2 text-[11px] font-mono text-slate-400 select-none">
-                        {(idx + 1).toString().padStart(2, '0')}.
-                      </span>
-                      <input
-                        ref={(el) => {
-                          wordInputRefs.current[idx] = el;
-                        }}
-                        type="text"
-                        value={val}
-                        id={`input_${rowId}`}
-                        aria-label={`Kata ${idx + 1}`}
-                        aria-describedby={hasErr ? errorId : undefined}
-                        aria-invalid={hasErr}
-                        onChange={(e) => handleWordChange(idx, e.target.value)}
-                        placeholder={`Kata ${idx + 1}`}
-                        className={`
-                          w-full pl-8 pr-2.5 py-1.5 text-xs sm:text-sm font-medium text-slate-900 
-                          bg-white border rounded-lg shadow-2xs transition-colors
-                          focus:outline-none focus:ring-2 focus:ring-blue-500
-                          ${hasErr ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-300 hover:border-slate-400'}
-                        `}
-                      />
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <span className="absolute left-3 top-2.5 text-xs font-mono text-slate-400 select-none">
+                          {(idx + 1).toString().padStart(2, '0')}.
+                        </span>
+                        <input
+                          ref={(el) => {
+                            wordInputRefs.current[idx] = el;
+                          }}
+                          type="text"
+                          value={val}
+                          id={`input_${rowId}`}
+                          aria-label={`Kata ${idx + 1}`}
+                          aria-describedby={hasErr ? errorId : undefined}
+                          aria-invalid={hasErr}
+                          onChange={(e) => handleWordChange(idx, e.target.value)}
+                          placeholder={`Kata ${idx + 1}`}
+                          className={`
+                            w-full pl-9 pr-3 py-2 text-sm font-medium text-slate-900 
+                            bg-white border rounded-lg shadow-2xs transition-colors
+                            focus:outline-none focus:ring-2 focus:ring-blue-500
+                            ${hasErr ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-300 hover:border-slate-400'}
+                          `}
+                        />
+                      </div>
+
+                      {/* Tombol hapus × mulai baris ke-2 */}
+                      {idx > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveWord(idx)}
+                          aria-label={`Hapus kata ${idx + 1}`}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                          title={`Hapus kata ${idx + 1}`}
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
+
                     <div id={errorId} className="fErr">
                       {wordErrs[idx]}
                     </div>
@@ -378,13 +371,27 @@ export const PuzzleMaker: React.FC<Props> = ({
               })}
             </div>
 
-            {/* Area error di bawah daftar */}
-            <div ref={listErrRef} className="fErr fLast mt-2">
+            {/* Satu area error tambahan di bawah daftar (di atas tombol "+ Tambah Kata") */}
+            <div ref={listErrRef} className="fErr fLast mt-2 mb-2">
               {listErr}
+            </div>
+
+            {/* Tombol "+ Tambah Kata" di bawah daftar */}
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={handleAddWord}
+                disabled={wordInputs.length >= 30}
+                aria-label="Tambah kata"
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Plus className="w-4 h-4" />
+                + Tambah Kata {wordInputs.length >= 30 ? '(Maksimal 30)' : `(${wordInputs.length}/30)`}
+              </button>
             </div>
           </div>
 
-          {/* 6. Pengaturan puzzle (blok kecil) */}
+          {/* 5. Pengaturan puzzle (blok kecil) */}
           <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-3">
               Pengaturan Puzzle
@@ -405,11 +412,11 @@ export const PuzzleMaker: React.FC<Props> = ({
                       gridSize: Number(e.target.value) as 12 | 15 | 18,
                     }))
                   }
-                  className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer"
                 >
-                  <option value={12}>12 × 12 (Ringkas)</option>
-                  <option value={15}>15 × 15 (Standar - Default)</option>
-                  <option value={18}>18 × 18 (Lebar)</option>
+                  <option value={12}>12 × 12</option>
+                  <option value={15}>15 × 15 (Default)</option>
+                  <option value={18}>18 × 18</option>
                 </select>
               </div>
 
@@ -432,7 +439,7 @@ export const PuzzleMaker: React.FC<Props> = ({
                     className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                   <span className="text-[11px] text-slate-500 whitespace-nowrap">
-                    (8–20, maks kata terisi)
+                    (8–20)
                   </span>
                 </div>
               </div>
@@ -492,24 +499,24 @@ export const PuzzleMaker: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* 7. Peringatan persis sesuai brief */}
+          {/* 6. Peringatan persis sesuai brief */}
           <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200/80 rounded-lg p-2.5 mb-6">
             ❗ Jangan memasukkan data pribadi ke dalam puzzle.
           </p>
 
-          {/* 8. Tombol Utama "Buat Puzzle" */}
+          {/* 7. Tombol Utama "Buat Puzzle" */}
           <div className="mb-8">
             <button
               id="mSubmit"
               type="submit"
               disabled={isSubmitting}
-              className="w-full sm:w-auto px-7 py-3 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer disabled:opacity-50"
+              className="w-full sm:w-auto px-8 py-3 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer disabled:opacity-50"
             >
               {isSubmitting ? 'Sedang Membuat Puzzle...' : 'Buat Puzzle'}
             </button>
           </div>
 
-          {/* 9. Kotak Petunjuk persis sesuai brief */}
+          {/* 8. Kotak Petunjuk persis sesuai brief */}
           <div id="mInstructions" className="pt-6 border-t border-slate-200">
             <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">
               Petunjuk

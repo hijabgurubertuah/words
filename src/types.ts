@@ -25,7 +25,6 @@ export interface PlacedWord {
 export interface GeneratedPuzzle {
   id: string;
   title: string;
-  description: string;
   grid: string[][];
   size: number;
   placedWords: PlacedWord[];
@@ -36,7 +35,8 @@ export interface GeneratedPuzzle {
 export interface PrintSettings {
   layout: '1_per_page' | '2_per_page';
   twoPuzzleMode: 'different' | 'duplicate';
+  cellScale: number; // 0.85 (kecil) - 1.0 (sedang) - 1.15 (besar)
+  fontSize: 'small' | 'medium' | 'large';
   includeAnswerKey: boolean;
   includeNameClass: boolean;
 }
-

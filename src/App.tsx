@@ -15,7 +15,6 @@ export default function App() {
 
   // Data formulir aktif
   const [formTitle, setFormTitle] = useState<string>('');
-  const [formDesc, setFormDesc] = useState<string>('');
   const [rawWords, setRawWords] = useState<WordItem[]>([]);
   const [settings, setSettings] = useState<PuzzleSettings>({
     gridSize: 15,
@@ -32,16 +31,14 @@ export default function App() {
   // Saat tombol "Buat Puzzle" diklik dari formulir
   const handleGeneratePuzzle = (
     title: string,
-    desc: string,
     words: WordItem[],
     puzzleSettings: PuzzleSettings
   ) => {
     setFormTitle(title);
-    setFormDesc(desc);
     setRawWords(words);
     setSettings(puzzleSettings);
 
-    const puzzle = generatePuzzle(title, desc, words, puzzleSettings);
+    const puzzle = generatePuzzle(title, words, puzzleSettings);
     setGeneratedPuzzle(puzzle);
     setCurrentView('result');
     setActiveTab('play');
@@ -51,7 +48,7 @@ export default function App() {
   // Tombol "Acak Ulang"
   const handleRegenerate = () => {
     if (!generatedPuzzle || rawWords.length === 0) return;
-    const newPuzzle = generatePuzzle(formTitle, formDesc, rawWords, settings);
+    const newPuzzle = generatePuzzle(formTitle, rawWords, settings);
     setGeneratedPuzzle(newPuzzle);
   };
 
@@ -68,15 +65,14 @@ export default function App() {
         {currentView === 'form' ? (
           <PuzzleMaker
             initialTitle={formTitle}
-            initialDesc={formDesc}
             initialWords={rawWords.map(w => w.original)}
             initialSettings={settings}
             onSubmit={handleGeneratePuzzle}
           />
         ) : (
           <div className="max-w-5xl mx-auto px-4 py-6">
-            {/* Navigasi kembali ke formulir */}
-            <div className="no-print mb-6">
+            {/* Navigasi kembali ke formulir tanpa menghapus isian */}
+            <div className="no-print mb-5">
               <button
                 onClick={handleBackToForm}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
@@ -86,19 +82,14 @@ export default function App() {
               </button>
             </div>
 
-            {/* Judul & Deskripsi Puzzle di atas Tab */}
+            {/* Di atas tab, tampilkan judul puzzle (tanpa kolom deskripsi) */}
             <div className="no-print bg-white rounded-xl p-5 border border-slate-200 shadow-sm mb-6">
               <h1 className="text-2xl font-bold tracking-tight text-slate-900">
                 {generatedPuzzle?.title || formTitle}
               </h1>
-              {formDesc && (
-                <p className="text-sm text-slate-600 mt-1">
-                  {generatedPuzzle?.description || formDesc}
-                </p>
-              )}
 
               {/* Dua Tab: "Main Langsung" dan "Cetak" */}
-              <div className="flex items-center gap-2 mt-5 border-t border-slate-100 pt-4">
+              <div className="flex items-center gap-2 mt-4 border-t border-slate-100 pt-4">
                 <button
                   onClick={() => setActiveTab('play')}
                   className={`inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
@@ -148,7 +139,7 @@ export default function App() {
       </main>
 
       {/* 
-        Footer persis sesuai instruksi:
+        Footer persis sesuai brief:
         "Teks persis: 'by : MGMP IPA KECAMATAN BENGKALIS' 
         (perhatikan spasi sebelum dan sesudah titik dua, dan huruf kapital). 
         Letakkan di bagian bawah halaman, teks kecil dan rata tengah."

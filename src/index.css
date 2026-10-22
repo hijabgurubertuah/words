@@ -28,7 +28,7 @@ PEMBUAT PUZZLE CARI KATA: DESAIN & ATURAN CETAK A4
 }
 
 /* Kontainer daftar kata */
-#wordlist, .wordlist, wordlist {
+#wordlist, .wordlist {
   display: block;
 }
 

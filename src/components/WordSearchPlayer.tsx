@@ -19,6 +19,47 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [showAllAnswers, setShowAllAnswers] = useState<boolean>(false);
 
+  // Ukuran kotak huruf fit ke layar
+  const [cellSizePx, setCellSizePx] = useState<number>(36);
+
+  // Hitung ulang ukuran kotak huruf otomatis agar pas memenuhi ruang layar yang tersisa
+  useEffect(() => {
+    const calculateFitSize = () => {
+      const winW = window.innerWidth;
+      const winH = window.innerHeight;
+      const isMobile = winW < 1024;
+
+      let maxGridDim: number;
+      if (isMobile) {
+        // Layar kecil/ponsel: ruang vertikal dan horizontal
+        const availW = Math.max(200, winW - 32);
+        const availH = Math.max(220, winH - 310);
+        maxGridDim = Math.min(availW, availH);
+      } else {
+        // Layar desktop/tablet: grid di samping daftar kata
+        // Kurangi area atas (header + tombol tab + kontrol game ~210px) dan footer (~45px)
+        const availH = Math.max(260, winH - 250);
+        const availW = Math.max(260, winW - 340); // Sisakan ~300px untuk daftar kata 1 kolom & margin
+        maxGridDim = Math.min(availH, availW);
+      }
+
+      // Hitung ukuran per sel (petak persegi)
+      const gapTotal = (puzzle.size - 1) * 3;
+      const calculatedCell = Math.floor((maxGridDim - gapTotal) / puzzle.size);
+      // Batasi minimum 20px dan maksimum 62px agar huruf tetap tajam dan proporsional
+      const clamped = Math.max(20, Math.min(62, calculatedCell));
+      setCellSizePx(clamped);
+    };
+
+    calculateFitSize();
+    window.addEventListener('resize', calculateFitSize);
+    window.addEventListener('orientationchange', calculateFitSize);
+    return () => {
+      window.removeEventListener('resize', calculateFitSize);
+      window.removeEventListener('orientationchange', calculateFitSize);
+    };
+  }, [puzzle.size]);
+
   // Perbarui jika puzzle berganti
   useEffect(() => {
     setPlacedWords(puzzle.placedWords);
@@ -40,7 +81,7 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
     return () => clearInterval(interval);
   }, [hasStarted, isVictory]);
 
-  // Tombol Ulangi (reset state pencarian kata pada papan yang sama)
+  // Tombol Ulangi (reset kata ditemukan pada papan yang sama)
   const handleResetBoard = () => {
     setPlacedWords(puzzle.placedWords.map(w => ({ ...w, found: false })));
     setSelectedCells([]);
@@ -64,7 +105,7 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
     setIsMuted(!sound.soundEnabled);
   };
 
-  // Garis sel yang ditarik
+  // Garis sel yang ditarik lurus mendatar, menurun, atau diagonal
   const getLineCells = (start: [number, number], end: [number, number]): [number, number][] | null => {
     const [r0, c0] = start;
     const [r1, c1] = end;
@@ -111,7 +152,7 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
   }, [placedWords, showAllAnswers]);
 
   // Mulai drag
-  const handlePointerDown = (r: number, c: number) => {
+  const handlePointerDown = (r: number, c: number, e: React.PointerEvent) => {
     if (isVictory) return;
     if (!hasStarted) setHasStarted(true);
     setIsDragging(true);
@@ -120,12 +161,20 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
     sound.playSelect();
   };
 
-  // Seret lewat sel
-  const handlePointerEnter = (r: number, c: number) => {
+  // Drag bergerak (support mouse dan sentuhan jari pada layar ponsel)
+  const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging || !dragStartCell) return;
-    const line = getLineCells(dragStartCell, [r, c]);
-    if (line) {
-      setSelectedCells(line);
+    const elem = document.elementFromPoint(e.clientX, e.clientY);
+    const cellTarget = elem?.closest('[data-cell-coord]');
+    if (cellTarget) {
+      const coordStr = cellTarget.getAttribute('data-cell-coord');
+      if (coordStr) {
+        const [r, c] = coordStr.split('_').map(Number);
+        const line = getLineCells(dragStartCell, [r, c]);
+        if (line) {
+          setSelectedCells(line);
+        }
+      }
     }
   };
 
@@ -181,9 +230,14 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
 
   const foundCount = placedWords.filter(w => w.found).length;
   const totalCount = placedWords.length;
+  const letterFontSize = Math.max(12, Math.round(cellSizePx * 0.52));
 
   return (
-    <div onPointerUp={handlePointerUp}>
+    <div
+      onPointerUp={handlePointerUp}
+      onPointerMove={handlePointerMove}
+      className="touch-none select-none"
+    >
       {/* Catatan jika ukuran grid disesuaikan otomatis */}
       {puzzle.sizeAdjustmentNote && (
         <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
@@ -192,9 +246,9 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
       )}
 
       {/* Baris Status & Tombol Aksi */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-200">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5 pb-3 border-b border-slate-200">
         {/* Status Ditemukan & Waktu */}
-        <div className="flex items-center gap-4 text-sm font-medium text-slate-800 bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-2xs">
+        <div className="flex items-center gap-3 text-xs sm:text-sm font-medium text-slate-800 bg-white px-3.5 py-1.5 rounded-lg border border-slate-200 shadow-2xs">
           <div className="flex items-center gap-1.5">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             <span>
@@ -213,7 +267,7 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
           <button
             onClick={toggleSound}
             aria-label={isMuted ? 'Nyalakan suara' : 'Bisukan suara'}
-            className="p-2 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs"
+            className="p-2 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
             title={isMuted ? 'Nyalakan suara' : 'Bisukan suara'}
           >
             {isMuted ? <VolumeX className="w-4 h-4 text-red-500" /> : <Volume2 className="w-4 h-4 text-emerald-600" />}
@@ -221,7 +275,7 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
 
           <button
             onClick={handleResetBoard}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             Ulangi
@@ -229,7 +283,7 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
 
           <button
             onClick={handleRevealAnswers}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-300 rounded-lg hover:bg-amber-100 transition-colors shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-300 rounded-lg hover:bg-amber-100 transition-colors shadow-2xs cursor-pointer"
           >
             <Eye className="w-3.5 h-3.5" />
             Tampilkan Jawaban
@@ -237,7 +291,7 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
 
           <button
             onClick={onRegenerate}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-2xs cursor-pointer"
           >
             <RotateCw className="w-3.5 h-3.5" />
             Acak Ulang
@@ -247,7 +301,7 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
 
       {/* Pesan Kemenangan */}
       {isVictory && (
-        <div className="mb-6 p-4 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center justify-between gap-4 animate-fadeIn">
+        <div className="mb-5 p-4 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center justify-between gap-4 animate-fadeIn">
           <div className="flex items-center gap-3">
             <Trophy className="w-6 h-6 text-amber-500 shrink-0" />
             <p className="text-sm font-semibold text-emerald-900">
@@ -256,25 +310,25 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
           </div>
           <button
             onClick={onRegenerate}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors shrink-0"
+            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors shrink-0 cursor-pointer"
           >
             Mainkan Puzzle Baru
           </button>
         </div>
       )}
 
-      {/* Grid dan Daftar Kata */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Kotak Huruf Grid di Tengah */}
-        <div className="lg:col-span-8 flex flex-col items-center">
+      {/* Grid dan Daftar Kata (Daftar Kata 1 kolom ke bawah) */}
+      <div className="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-6">
+        {/* Kotak Huruf Grid: otomatis fit ke layar */}
+        <div className="flex flex-col items-center shrink-0">
           <div
-            className="select-none inline-block p-3 sm:p-4 bg-white rounded-xl shadow-xs border border-slate-200 touch-none"
-            style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
+            className="inline-block p-2 sm:p-3 bg-white rounded-xl shadow-xs border border-slate-200"
+            style={{ touchAction: 'none' }}
           >
             <div
-              className="grid gap-1 sm:gap-1.5"
+              className="grid gap-[3px]"
               style={{
-                gridTemplateColumns: `repeat(${puzzle.size}, minmax(0, 1fr))`,
+                gridTemplateColumns: `repeat(${puzzle.size}, ${cellSizePx}px)`,
               }}
             >
               {puzzle.grid.map((row, rIdx) =>
@@ -283,10 +337,15 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
                   const foundColor = foundCellColorMap.get(`${rIdx}_${cIdx}`);
 
                   let cellBg = 'bg-slate-50 hover:bg-slate-100 text-slate-800';
-                  let cellStyle: React.CSSProperties = {};
+                  let cellStyle: React.CSSProperties = {
+                    width: `${cellSizePx}px`,
+                    height: `${cellSizePx}px`,
+                    fontSize: `${letterFontSize}px`,
+                  };
 
                   if (foundColor) {
                     cellStyle = {
+                      ...cellStyle,
                       backgroundColor: foundColor,
                       color: '#0f172a',
                       fontWeight: 800,
@@ -295,6 +354,7 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
 
                   if (isSelected) {
                     cellStyle = {
+                      ...cellStyle,
                       backgroundColor: '#60A5FA', // biru terang saat diseret
                       color: '#ffffff',
                       fontWeight: 800,
@@ -305,13 +365,11 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
                   return (
                     <div
                       key={`${rIdx}_${cIdx}`}
-                      onPointerDown={() => handlePointerDown(rIdx, cIdx)}
-                      onPointerEnter={() => handlePointerEnter(rIdx, cIdx)}
+                      data-cell-coord={`${rIdx}_${cIdx}`}
+                      onPointerDown={(e) => handlePointerDown(rIdx, cIdx, e)}
                       style={cellStyle}
                       className={`
-                        w-7 h-7 sm:w-9 sm:h-9 md:w-10 md:h-10 
                         flex items-center justify-center 
-                        text-sm sm:text-base md:text-lg 
                         font-mono font-bold tracking-wider 
                         rounded-md cursor-pointer 
                         transition-transform duration-75 
@@ -325,13 +383,13 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
               )}
             </div>
           </div>
-          <p className="text-xs text-slate-500 mt-3 text-center">
-            Seret tetikus (mouse) atau sentuhan jari dari huruf pertama ke huruf terakhir secara lurus mendatar, menurun, atau diagonal.
+          <p className="text-[11px] text-slate-500 mt-2 text-center">
+            Seret lurus mendatar, menurun, atau diagonal untuk mencari kata.
           </p>
         </div>
 
-        {/* Daftar Kata (Memakai Bentuk Asli Kata) */}
-        <div className="lg:col-span-4 bg-white p-4 rounded-xl shadow-xs border border-slate-200">
+        {/* Daftar Kata: 1 KOLOM KE BAWAH memakai bentuk asli kata */}
+        <div className="w-full lg:w-64 bg-white p-4 rounded-xl shadow-xs border border-slate-200 shrink-0">
           <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
             <h3 className="font-semibold text-slate-900 text-sm">Daftar Kata</h3>
             <span className="text-xs text-slate-500">
@@ -339,12 +397,13 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            {placedWords.map((pw) => (
+          {/* 1 Kolom ke Bawah */}
+          <div className="flex flex-col gap-1.5 max-h-[52vh] overflow-y-auto pr-1">
+            {placedWords.map((pw, i) => (
               <div
                 key={pw.word}
                 className={`
-                  px-2.5 py-1.5 rounded-lg text-xs font-mono font-semibold 
+                  px-3 py-1.5 rounded-lg text-xs font-mono font-semibold 
                   transition-all duration-150 flex items-center justify-between
                   ${
                     pw.found || showAllAnswers
@@ -354,7 +413,12 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
                 `}
                 style={pw.found || showAllAnswers ? { borderLeft: `4px solid ${pw.color}` } : {}}
               >
-                <span className="truncate">{pw.originalText}</span>
+                <div className="flex items-center gap-1.5 truncate">
+                  <span className="text-[10px] text-slate-400 select-none">
+                    {(i + 1).toString().padStart(2, '0')}.
+                  </span>
+                  <span className="truncate">{pw.originalText}</span>
+                </div>
                 {(pw.found || showAllAnswers) && (
                   <span className="text-emerald-600 font-bold ml-1 text-xs">✓</span>
                 )}
@@ -362,10 +426,9 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
             ))}
           </div>
 
-          <div className="mt-5 pt-3 border-t border-slate-100 text-[11px] text-slate-500 space-y-1">
+          <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500 space-y-1">
             <p className="font-medium text-slate-700">Petunjuk bermain:</p>
-            <p>• Kata dapat berada dalam arah mendatar, menurun, atau diagonal.</p>
-            <p>• Kata dapat bersilangan huruf dengan kata lain.</p>
+            <p>• Kata dapat bersilangan dan terbalik jika diaktifkan.</p>
           </div>
         </div>
       </div>
