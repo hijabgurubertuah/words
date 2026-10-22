@@ -1,0 +1,6 @@
+{
+  "name": "Word Search Puzzle Maker",
+  "description": "Create custom themed word search puzzles with live validation, randomized grid generation, interactive gameplay, and printable sheets.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

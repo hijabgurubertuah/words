@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+/* 
+================================================================================
+WORD SEARCH PUZZLE MAKER: DESIGN TOKENS & STYLE RULES
+================================================================================
+Design Tokens (as defined in build brief specification):
+- Font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif
+- Monospace (Grid & Tabular): 'JetBrains Mono', monospace
+- Uniform Block Spacing: 1.25rem (20px)
+- Error State Color: #DC2626 (Red 600)
+- Accent / Submit Color: #2563EB (Blue 600) / Hover: #1D4ED8 (Blue 700)
+- Input Border: #CBD5E1 (Slate 300) / Focus Ring: #3B82F6 (Blue 500)
+- Surface Background: #FFFFFF (White) / Neutral Canvas: #F8FAFC (Slate 50)
+================================================================================
+*/
+
+/* Error message rule: .fErr empty takes NO space and is completely hidden */
+.fErr {
+  color: #dc2626;
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  font-weight: 500;
+  margin-top: 0.25rem;
+  min-height: 0;
+}
+
+.fErr:empty {
+  display: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Custom <wordlist> custom tag styling */
+wordlist {
+  display: block;
+}
+
+/* Print worksheet optimization */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+}
+
+.print-only {
+  display: none;
+}
