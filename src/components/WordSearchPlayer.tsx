@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { GeneratedPuzzle, PlacedWord } from '../types';
 import { sound } from '../utils/audio';
 import { RotateCw, Eye, RefreshCw, Trophy, Volume2, VolumeX, CheckCircle2, Clock } from 'lucide-react';
@@ -20,7 +20,7 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
   const [showAllAnswers, setShowAllAnswers] = useState<boolean>(false);
 
   // Ukuran kotak huruf fit ke layar
-  const [cellSizePx, setCellSizePx] = useState<number>(36);
+  const [cellSizePx, setCellSizePx] = useState<number>(38);
 
   // Hitung ulang ukuran kotak huruf otomatis agar pas memenuhi ruang layar yang tersisa
   useEffect(() => {
@@ -32,22 +32,21 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
       let maxGridDim: number;
       if (isMobile) {
         // Layar kecil/ponsel: ruang vertikal dan horizontal
-        const availW = Math.max(200, winW - 32);
-        const availH = Math.max(220, winH - 310);
+        const availW = Math.max(200, winW - 24);
+        const availH = Math.max(220, winH - 260);
         maxGridDim = Math.min(availW, availH);
       } else {
-        // Layar desktop/tablet: grid di samping daftar kata
-        // Kurangi area atas (header + tombol tab + kontrol game ~210px) dan footer (~45px)
-        const availH = Math.max(260, winH - 250);
-        const availW = Math.max(260, winW - 340); // Sisakan ~300px untuk daftar kata 1 kolom & margin
+        // Layar desktop: area atas sangat ramping (~160px) + footer (~40px)
+        const availH = Math.max(280, winH - 190);
+        const availW = Math.max(280, winW - 320); // Ruang untuk daftar kata 1 kolom (~260px)
         maxGridDim = Math.min(availH, availW);
       }
 
       // Hitung ukuran per sel (petak persegi)
-      const gapTotal = (puzzle.size - 1) * 3;
+      const gapTotal = (puzzle.size - 1) * 2;
       const calculatedCell = Math.floor((maxGridDim - gapTotal) / puzzle.size);
-      // Batasi minimum 20px dan maksimum 62px agar huruf tetap tajam dan proporsional
-      const clamped = Math.max(20, Math.min(62, calculatedCell));
+      // Batasi minimum 22px dan maksimum 70px agar grid membesar memenuhi layar kosong
+      const clamped = Math.max(22, Math.min(70, calculatedCell));
       setCellSizePx(clamped);
     };
 
@@ -152,7 +151,7 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
   }, [placedWords, showAllAnswers]);
 
   // Mulai drag
-  const handlePointerDown = (r: number, c: number, e: React.PointerEvent) => {
+  const handlePointerDown = (r: number, c: number) => {
     if (isVictory) return;
     if (!hasStarted) setHasStarted(true);
     setIsDragging(true);
@@ -161,7 +160,7 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
     sound.playSelect();
   };
 
-  // Drag bergerak (support mouse dan sentuhan jari pada layar ponsel)
+  // Drag bergerak (support mouse dan sentuhan jari)
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging || !dragStartCell) return;
     const elem = document.elementFromPoint(e.clientX, e.clientY);
@@ -216,9 +215,7 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
   const formatTime = (sec: number) => {
     const m = Math.floor(sec / 60);
     const s = sec % 60;
-    if (m > 0) {
-      return `${m} menit ${s} detik`;
-    }
+    if (m > 0) return `${m} menit ${s} detik`;
     return `${s} detik`;
   };
 
@@ -240,93 +237,97 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
     >
       {/* Catatan jika ukuran grid disesuaikan otomatis */}
       {puzzle.sizeAdjustmentNote && (
-        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+        <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
           ℹ️ {puzzle.sizeAdjustmentNote}
         </div>
       )}
 
-      {/* Baris Status & Tombol Aksi */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5 pb-3 border-b border-slate-200">
+      {/* 
+        Satu Baris Atas Ringkas:
+        Kiri: Penghitung kata & Pewaktu
+        Kanan: Deretan tombol kecil (Mute, Ulangi, Jawaban, Acak Ulang)
+      */}
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2 border-b border-slate-200">
         {/* Status Ditemukan & Waktu */}
-        <div className="flex items-center gap-3 text-xs sm:text-sm font-medium text-slate-800 bg-white px-3.5 py-1.5 rounded-lg border border-slate-200 shadow-2xs">
-          <div className="flex items-center gap-1.5">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+        <div className="flex items-center gap-2.5 text-xs font-medium text-slate-800 bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-2xs">
+          <div className="flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
             <span>
-              Ditemukan: <strong className="text-slate-900">{foundCount}</strong> dari {totalCount} kata
+              Ditemukan: <strong className="text-slate-900">{foundCount}</strong>/{totalCount}
             </span>
           </div>
           <span className="text-slate-300">|</span>
-          <div className="flex items-center gap-1.5">
-            <Clock className="w-4 h-4 text-blue-600" />
-            <span className="font-mono tabular-nums">{formatDigitalTime(secondsElapsed)}</span>
+          <div className="flex items-center gap-1 font-mono tabular-nums">
+            <Clock className="w-3.5 h-3.5 text-blue-600" />
+            <span>{formatDigitalTime(secondsElapsed)}</span>
           </div>
         </div>
 
-        {/* Tombol Kontrol */}
-        <div className="flex items-center gap-2">
+        {/* Deretan Tombol Kontrol Kecil dalam Satu Baris */}
+        <div className="flex items-center gap-1.5">
           <button
             onClick={toggleSound}
             aria-label={isMuted ? 'Nyalakan suara' : 'Bisukan suara'}
-            className="p-2 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+            className="p-1.5 text-slate-600 bg-white border border-slate-200 rounded hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
             title={isMuted ? 'Nyalakan suara' : 'Bisukan suara'}
           >
-            {isMuted ? <VolumeX className="w-4 h-4 text-red-500" /> : <Volume2 className="w-4 h-4 text-emerald-600" />}
+            {isMuted ? <VolumeX className="w-3.5 h-3.5 text-red-500" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-600" />}
           </button>
 
           <button
             onClick={handleResetBoard}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Ulangi
+            <RefreshCw className="w-3 h-3" />
+            <span className="hidden sm:inline">Ulangi</span>
           </button>
 
           <button
             onClick={handleRevealAnswers}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-300 rounded-lg hover:bg-amber-100 transition-colors shadow-2xs cursor-pointer"
+            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-amber-800 bg-amber-50 border border-amber-300 rounded hover:bg-amber-100 transition-colors shadow-2xs cursor-pointer"
           >
-            <Eye className="w-3.5 h-3.5" />
-            Tampilkan Jawaban
+            <Eye className="w-3 h-3" />
+            <span className="hidden sm:inline">Jawaban</span>
           </button>
 
           <button
             onClick={onRegenerate}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-2xs cursor-pointer"
+            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors shadow-2xs cursor-pointer"
           >
-            <RotateCw className="w-3.5 h-3.5" />
-            Acak Ulang
+            <RotateCw className="w-3 h-3" />
+            <span className="hidden sm:inline">Acak Ulang</span>
           </button>
         </div>
       </div>
 
       {/* Pesan Kemenangan */}
       {isVictory && (
-        <div className="mb-5 p-4 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center justify-between gap-4 animate-fadeIn">
-          <div className="flex items-center gap-3">
-            <Trophy className="w-6 h-6 text-amber-500 shrink-0" />
-            <p className="text-sm font-semibold text-emerald-900">
+        <div className="mb-3 p-3 bg-emerald-50 border border-emerald-300 rounded-lg flex items-center justify-between gap-3 animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-amber-500 shrink-0" />
+            <p className="text-xs sm:text-sm font-semibold text-emerald-900">
               Selamat! Semua kata ditemukan dalam {formatTime(secondsElapsed)}.
             </p>
           </div>
           <button
             onClick={onRegenerate}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors shrink-0 cursor-pointer"
+            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold shadow-2xs transition-colors shrink-0 cursor-pointer"
           >
-            Mainkan Puzzle Baru
+            Puzzle Baru
           </button>
         </div>
       )}
 
-      {/* Grid dan Daftar Kata (Daftar Kata 1 kolom ke bawah) */}
-      <div className="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-6">
-        {/* Kotak Huruf Grid: otomatis fit ke layar */}
+      {/* Grid dan Daftar Kata (Daftar Kata 1 kolom ke bawah rapat) */}
+      <div className="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4 sm:gap-6">
+        {/* Kotak Huruf Grid: otomatis fit ke layar kosong */}
         <div className="flex flex-col items-center shrink-0">
           <div
-            className="inline-block p-2 sm:p-3 bg-white rounded-xl shadow-xs border border-slate-200"
+            className="inline-block p-1.5 sm:p-2 bg-white rounded-lg shadow-xs border border-slate-200"
             style={{ touchAction: 'none' }}
           >
             <div
-              className="grid gap-[3px]"
+              className="grid gap-[2px]"
               style={{
                 gridTemplateColumns: `repeat(${puzzle.size}, ${cellSizePx}px)`,
               }}
@@ -366,12 +367,12 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
                     <div
                       key={`${rIdx}_${cIdx}`}
                       data-cell-coord={`${rIdx}_${cIdx}`}
-                      onPointerDown={(e) => handlePointerDown(rIdx, cIdx, e)}
+                      onPointerDown={() => handlePointerDown(rIdx, cIdx)}
                       style={cellStyle}
                       className={`
                         flex items-center justify-center 
                         font-mono font-bold tracking-wider 
-                        rounded-md cursor-pointer 
+                        rounded cursor-pointer 
                         transition-transform duration-75 
                         ${!foundColor && !isSelected ? cellBg : ''}
                       `}
@@ -383,27 +384,32 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
               )}
             </div>
           </div>
-          <p className="text-[11px] text-slate-500 mt-2 text-center">
+          <p className="text-[10px] text-slate-500 mt-1.5 text-center">
             Seret lurus mendatar, menurun, atau diagonal untuk mencari kata.
           </p>
         </div>
 
-        {/* Daftar Kata: 1 KOLOM KE BAWAH memakai bentuk asli kata */}
-        <div className="w-full lg:w-64 bg-white p-4 rounded-xl shadow-xs border border-slate-200 shrink-0">
-          <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
-            <h3 className="font-semibold text-slate-900 text-sm">Daftar Kata</h3>
-            <span className="text-xs text-slate-500">
+        {/* Daftar Kata: 1 KOLOM KE BAWAH rapat & scrollable */}
+        <div
+          className="w-full lg:w-56 bg-white p-3 rounded-lg shadow-xs border border-slate-200 shrink-0 flex flex-col"
+          style={{
+            maxHeight: `${Math.max(260, cellSizePx * puzzle.size + (puzzle.size - 1) * 2 + 30)}px`,
+          }}
+        >
+          <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-100 shrink-0">
+            <h3 className="font-semibold text-slate-900 text-xs">Daftar Kata</h3>
+            <span className="text-[11px] text-slate-500">
               {foundCount}/{totalCount}
             </span>
           </div>
 
-          {/* 1 Kolom ke Bawah */}
-          <div className="flex flex-col gap-1.5 max-h-[52vh] overflow-y-auto pr-1">
+          {/* 1 Kolom ke Bawah dengan jarak baris rapat (gap-1) */}
+          <div className="flex flex-col gap-1 overflow-y-auto pr-1 flex-1">
             {placedWords.map((pw, i) => (
               <div
                 key={pw.word}
                 className={`
-                  px-3 py-1.5 rounded-lg text-xs font-mono font-semibold 
+                  px-2.5 py-1 rounded text-xs font-mono font-semibold 
                   transition-all duration-150 flex items-center justify-between
                   ${
                     pw.found || showAllAnswers
@@ -411,7 +417,7 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
                       : 'text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200'
                   }
                 `}
-                style={pw.found || showAllAnswers ? { borderLeft: `4px solid ${pw.color}` } : {}}
+                style={pw.found || showAllAnswers ? { borderLeft: `3px solid ${pw.color}` } : {}}
               >
                 <div className="flex items-center gap-1.5 truncate">
                   <span className="text-[10px] text-slate-400 select-none">
@@ -424,11 +430,6 @@ export const WordSearchPlayer: React.FC<Props> = ({ puzzle, onRegenerate }) => {
                 )}
               </div>
             ))}
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500 space-y-1">
-            <p className="font-medium text-slate-700">Petunjuk bermain:</p>
-            <p>• Kata dapat bersilangan dan terbalik jika diaktifkan.</p>
           </div>
         </div>
       </div>

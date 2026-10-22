@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { WordItem, PuzzleSettings } from '../types';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Props {
   initialTitle?: string;
@@ -55,6 +55,7 @@ export const PuzzleMaker: React.FC<Props> = ({
   });
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isInstructionsOpen, setIsInstructionsOpen] = useState<boolean>(false); // Accordion Petunjuk: default tertutup
 
   // Error states
   const [titleErr, setTitleErr] = useState<string>('');
@@ -253,26 +254,23 @@ export const PuzzleMaker: React.FC<Props> = ({
     setTimeout(() => {
       setIsSubmitting(false);
       onSubmit(trimmedTitle, finalWords, settings);
-    }, 250);
+    }, 200);
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      {/* 1. Judul Halaman */}
-      <div className="mb-6 text-center sm:text-left">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+    <div className="max-w-2xl mx-auto px-3 py-3">
+      {/* 1. Header Halaman Satu Baris */}
+      <div className="mb-3 text-center sm:text-left">
+        <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
           Pembuat Puzzle Cari Kata
         </h1>
-        <p className="text-sm text-slate-600 mt-1">
-          Buat lembar puzzle bertema secara acak untuk dimainkan siswa di layar atau dicetak di kertas A4.
-        </p>
       </div>
 
-      <section id="maker" className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 sm:p-8">
-        <form onSubmit={handleSubmit} noValidate>
+      <section id="maker" className="bg-white rounded-lg border border-slate-200 shadow-2xs p-3 sm:p-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-3">
           {/* 2. Judul (Tanpa kolom deskripsi!) */}
-          <div id="mTitle" className="mb-6">
-            <label htmlFor="puzzleTitleInput" className="block text-sm font-semibold text-slate-900 mb-1.5">
+          <div id="mTitle">
+            <label htmlFor="puzzleTitleInput" className="block text-xs font-semibold text-slate-800 mb-1">
               Judul
             </label>
             <input
@@ -288,34 +286,34 @@ export const PuzzleMaker: React.FC<Props> = ({
               }}
               placeholder="Contoh: Sistem Pencernaan Manusia, Tata Surya"
               className={`
-                w-full px-3.5 py-2.5 text-sm text-slate-900 bg-white border rounded-lg 
-                shadow-2xs transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500
+                w-full px-3 py-1.5 text-sm text-slate-900 bg-white border rounded-md 
+                shadow-2xs transition-colors focus:outline-none focus:ring-1 focus:ring-blue-500
                 ${titleErr ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-300 hover:border-slate-400'}
               `}
             />
-            <div id="titleError" className="fErr">
+            <div id="titleError" className="fErr text-xs">
               {titleErr}
             </div>
           </div>
 
           {/* 3 & 4. Label Daftar Kata + Teks Bantu + Input 1 Kolom ke Bawah */}
-          <div id="mWords" className="mb-6">
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-sm font-semibold text-slate-900">
+          <div id="mWords">
+            <div className="flex items-center justify-between mb-0.5">
+              <label className="block text-xs font-semibold text-slate-800">
                 Daftar Kata
               </label>
-              <span className="text-xs font-mono text-slate-500">
+              <span className="text-[11px] font-mono text-slate-500">
                 {filledCount} kata terisi {filledCount >= 10 ? '✓' : '(minimal 10)'}
               </span>
             </div>
 
             {/* Teks bantu persis sesuai brief */}
-            <p style={{ margin: 0 }} className="text-xs text-slate-500 mb-3">
+            <p style={{ margin: 0 }} className="text-[11px] text-slate-500 mb-2">
               Isi 10 sampai 30 kata. Puzzle dibuat secara acak memakai sebagian kata dari daftar Anda.
             </p>
 
-            {/* Daftar input kata: 1 kolom ke bawah di semua ukuran layar */}
-            <div id="wordlist" className="wordlist flex flex-col gap-2.5">
+            {/* Daftar input kata: 1 kolom rapat (gap-1.5) */}
+            <div id="wordlist" className="wordlist flex flex-col gap-1.5">
               {wordInputs.map((val, idx) => {
                 const rowId = `wrd${idx}`;
                 const errorId = `err_${rowId}`;
@@ -323,9 +321,9 @@ export const PuzzleMaker: React.FC<Props> = ({
 
                 return (
                   <div key={rowId} id={rowId} className="word">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <div className="relative flex-1">
-                        <span className="absolute left-3 top-2.5 text-xs font-mono text-slate-400 select-none">
+                        <span className="absolute left-2.5 top-2 text-[11px] font-mono text-slate-400 select-none">
                           {(idx + 1).toString().padStart(2, '0')}.
                         </span>
                         <input
@@ -341,29 +339,29 @@ export const PuzzleMaker: React.FC<Props> = ({
                           onChange={(e) => handleWordChange(idx, e.target.value)}
                           placeholder={`Kata ${idx + 1}`}
                           className={`
-                            w-full pl-9 pr-3 py-2 text-sm font-medium text-slate-900 
-                            bg-white border rounded-lg shadow-2xs transition-colors
-                            focus:outline-none focus:ring-2 focus:ring-blue-500
+                            w-full pl-8 pr-2.5 py-1.5 text-xs sm:text-sm font-medium text-slate-900 
+                            bg-white border rounded-md shadow-2xs transition-colors
+                            focus:outline-none focus:ring-1 focus:ring-blue-500
                             ${hasErr ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-300 hover:border-slate-400'}
                           `}
                         />
                       </div>
 
-                      {/* Tombol hapus × mulai baris ke-2 */}
+                      {/* Tombol hapus × kecil mulai baris ke-2 */}
                       {idx > 0 && (
                         <button
                           type="button"
                           onClick={() => handleRemoveWord(idx)}
                           aria-label={`Hapus kata ${idx + 1}`}
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
                           title={`Hapus kata ${idx + 1}`}
                         >
-                          <X className="w-4 h-4" />
+                          <X className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
 
-                    <div id={errorId} className="fErr">
+                    <div id={errorId} className="fErr text-xs">
                       {wordErrs[idx]}
                     </div>
                   </div>
@@ -371,37 +369,33 @@ export const PuzzleMaker: React.FC<Props> = ({
               })}
             </div>
 
-            {/* Satu area error tambahan di bawah daftar (di atas tombol "+ Tambah Kata") */}
-            <div ref={listErrRef} className="fErr fLast mt-2 mb-2">
+            {/* Area error tambahan di bawah daftar (di atas tombol "+ Tambah Kata") */}
+            <div ref={listErrRef} className="fErr fLast mt-1.5 mb-1.5 text-xs">
               {listErr}
             </div>
 
-            {/* Tombol "+ Tambah Kata" di bawah daftar */}
-            <div className="mt-3">
+            {/* Tombol "+ Tambah Kata" ramping di bawah daftar */}
+            <div className="mt-2">
               <button
                 type="button"
                 onClick={handleAddWord}
                 disabled={wordInputs.length >= 30}
                 aria-label="Tambah kata"
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5" />
                 + Tambah Kata {wordInputs.length >= 30 ? '(Maksimal 30)' : `(${wordInputs.length}/30)`}
               </button>
             </div>
           </div>
 
-          {/* 5. Pengaturan puzzle (blok kecil) */}
-          <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-3">
-              Pengaturan Puzzle
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* 5. Pengaturan puzzle: Disusun SEJAJAR dalam satu blok yang membungkus otomatis (flex-wrap) */}
+          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+            <div className="flex flex-wrap items-center gap-3 text-xs">
               {/* Ukuran kotak */}
-              <div>
-                <label htmlFor="gridSizeSelect" className="block text-xs font-semibold text-slate-800 mb-1">
-                  Ukuran kotak
+              <div className="flex items-center gap-1.5">
+                <label htmlFor="gridSizeSelect" className="font-semibold text-slate-800 whitespace-nowrap">
+                  Ukuran:
                 </label>
                 <select
                   id="gridSizeSelect"
@@ -412,7 +406,7 @@ export const PuzzleMaker: React.FC<Props> = ({
                       gridSize: Number(e.target.value) as 12 | 15 | 18,
                     }))
                   }
-                  className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer"
+                  className="bg-white border border-slate-300 rounded px-2 py-1 text-xs font-medium text-slate-800 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer"
                 >
                   <option value={12}>12 × 12</option>
                   <option value={15}>15 × 15 (Default)</option>
@@ -421,116 +415,120 @@ export const PuzzleMaker: React.FC<Props> = ({
               </div>
 
               {/* Jumlah kata dalam puzzle */}
-              <div>
-                <label htmlFor="wordCountInput" className="block text-xs font-semibold text-slate-800 mb-1">
-                  Jumlah kata dalam puzzle
+              <div className="flex items-center gap-1.5">
+                <label htmlFor="wordCountInput" className="font-semibold text-slate-800 whitespace-nowrap">
+                  Jumlah kata:
                 </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    id="wordCountInput"
-                    type="number"
-                    min={8}
-                    max={Math.max(8, Math.min(20, filledCount || 20))}
-                    value={settings.wordCount}
-                    onChange={(e) => {
-                      const val = Math.max(8, Math.min(20, Number(e.target.value)));
-                      setSettings((prev) => ({ ...prev, wordCount: val }));
-                    }}
-                    className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                  <span className="text-[11px] text-slate-500 whitespace-nowrap">
-                    (8–20)
-                  </span>
-                </div>
+                <input
+                  id="wordCountInput"
+                  type="number"
+                  min={8}
+                  max={Math.max(8, Math.min(20, filledCount || 20))}
+                  value={settings.wordCount}
+                  onChange={(e) => {
+                    const val = Math.max(8, Math.min(20, Number(e.target.value)));
+                    setSettings((prev) => ({ ...prev, wordCount: val }));
+                  }}
+                  className="w-14 bg-white border border-slate-300 rounded px-2 py-1 text-xs font-medium text-slate-800 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                />
+                <span className="text-[10px] text-slate-400">(8–20)</span>
               </div>
 
               {/* Arah kata */}
-              <div>
-                <span className="block text-xs font-semibold text-slate-800 mb-1">
-                  Arah kata
-                </span>
-                <div className="grid grid-cols-2 gap-1.5 text-xs text-slate-700">
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={settings.horizontal}
-                      onChange={(e) =>
-                        setSettings((prev) => ({ ...prev, horizontal: e.target.checked }))
-                      }
-                      className="rounded text-blue-600 focus:ring-blue-500"
-                    />
-                    <span>Mendatar</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={settings.vertical}
-                      onChange={(e) =>
-                        setSettings((prev) => ({ ...prev, vertical: e.target.checked }))
-                      }
-                      className="rounded text-blue-600 focus:ring-blue-500"
-                    />
-                    <span>Menurun</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={settings.diagonal}
-                      onChange={(e) =>
-                        setSettings((prev) => ({ ...prev, diagonal: e.target.checked }))
-                      }
-                      className="rounded text-blue-600 focus:ring-blue-500"
-                    />
-                    <span>Diagonal</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={settings.allowReverse}
-                      onChange={(e) =>
-                        setSettings((prev) => ({ ...prev, allowReverse: e.target.checked }))
-                      }
-                      className="rounded text-blue-600 focus:ring-blue-500"
-                    />
-                    <span>Boleh terbalik</span>
-                  </label>
-                </div>
+              <div className="flex flex-wrap items-center gap-2 border-l border-slate-200 pl-2">
+                <span className="font-semibold text-slate-800">Arah:</span>
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.horizontal}
+                    onChange={(e) =>
+                      setSettings((prev) => ({ ...prev, horizontal: e.target.checked }))
+                    }
+                    className="rounded text-blue-600 focus:ring-blue-500 scale-90"
+                  />
+                  <span>Mendatar</span>
+                </label>
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.vertical}
+                    onChange={(e) =>
+                      setSettings((prev) => ({ ...prev, vertical: e.target.checked }))
+                    }
+                    className="rounded text-blue-600 focus:ring-blue-500 scale-90"
+                  />
+                  <span>Menurun</span>
+                </label>
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.diagonal}
+                    onChange={(e) =>
+                      setSettings((prev) => ({ ...prev, diagonal: e.target.checked }))
+                    }
+                    className="rounded text-blue-600 focus:ring-blue-500 scale-90"
+                  />
+                  <span>Diagonal</span>
+                </label>
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.allowReverse}
+                    onChange={(e) =>
+                      setSettings((prev) => ({ ...prev, allowReverse: e.target.checked }))
+                    }
+                    className="rounded text-blue-600 focus:ring-blue-500 scale-90"
+                  />
+                  <span>Boleh terbalik</span>
+                </label>
               </div>
             </div>
           </div>
 
-          {/* 6. Peringatan persis sesuai brief */}
-          <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200/80 rounded-lg p-2.5 mb-6">
+          {/* 6. Peringatan persis sesuai brief: satu baris teks kecil tepat di atas tombol */}
+          <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200/80 rounded px-2.5 py-1.5">
             ❗ Jangan memasukkan data pribadi ke dalam puzzle.
           </p>
 
-          {/* 7. Tombol Utama "Buat Puzzle" */}
-          <div className="mb-8">
+          {/* 7. Tombol Utama "Buat Puzzle" ramping */}
+          <div>
             <button
               id="mSubmit"
               type="submit"
               disabled={isSubmitting}
-              className="w-full sm:w-auto px-8 py-3 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer disabled:opacity-50"
+              className="w-full sm:w-auto px-6 py-2 text-sm font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-2xs focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer disabled:opacity-50"
             >
               {isSubmitting ? 'Sedang Membuat Puzzle...' : 'Buat Puzzle'}
             </button>
           </div>
 
-          {/* 8. Kotak Petunjuk persis sesuai brief */}
-          <div id="mInstructions" className="pt-6 border-t border-slate-200">
-            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">
-              Petunjuk
-            </h3>
-            <ul className="text-xs text-slate-600 space-y-2 list-disc list-inside">
-              <li>Untuk membuat puzzle, isi daftar kata minimal 10 kata.</li>
-              <li>
-                Daftar kata sebaiknya bertema satu topik, misalnya materi IPA seperti sistem pencernaan atau tata surya.
-              </li>
-              <li>
-                Kata hanya boleh berisi huruf a–z dan maksimal dua spasi atau tanda hubung. Spasi dan tanda hubung dihapus saat kata dimasukkan ke kotak puzzle.
-              </li>
-              <li>Panjang kata maksimal 14 huruf.</li>
-            </ul>
+          {/* 8. Kotak Petunjuk: Accordion, default tertutup, 4 poin persis */}
+          <div id="mInstructions" className="pt-2 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={() => setIsInstructionsOpen(prev => !prev)}
+              className="w-full flex items-center justify-between text-xs font-semibold text-slate-700 hover:text-slate-900 py-1 transition-colors cursor-pointer"
+            >
+              <span>Petunjuk</span>
+              {isInstructionsOpen ? (
+                <ChevronUp className="w-4 h-4 text-slate-500" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-slate-500" />
+              )}
+            </button>
+
+            {isInstructionsOpen && (
+              <ul className="text-xs text-slate-600 space-y-1.5 list-disc list-inside mt-2 pb-1 animate-fadeIn">
+                <li>Untuk membuat puzzle, isi daftar kata minimal 10 kata.</li>
+                <li>
+                  Daftar kata sebaiknya bertema satu topik, misalnya materi IPA seperti sistem pencernaan atau tata surya.
+                </li>
+                <li>
+                  Kata hanya boleh berisi huruf a–z dan maksimal dua spasi atau tanda hubung. Spasi dan tanda hubung dihapus saat kata dimasukkan ke kotak puzzle.
+                </li>
+                <li>Panjang kata maksimal 14 huruf.</li>
+              </ul>
+            )}
           </div>
         </form>
       </section>
