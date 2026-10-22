@@ -2,24 +2,20 @@
 
 /* 
 ================================================================================
-WORD SEARCH PUZZLE MAKER: DESIGN TOKENS & STYLE RULES
-================================================================================
-Design Tokens (as defined in build brief specification):
-- Font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif
-- Monospace (Grid & Tabular): 'JetBrains Mono', monospace
-- Uniform Block Spacing: 1.25rem (20px)
-- Error State Color: #DC2626 (Red 600)
-- Accent / Submit Color: #2563EB (Blue 600) / Hover: #1D4ED8 (Blue 700)
-- Input Border: #CBD5E1 (Slate 300) / Focus Ring: #3B82F6 (Blue 500)
-- Surface Background: #FFFFFF (White) / Neutral Canvas: #F8FAFC (Slate 50)
+PEMBUAT PUZZLE CARI KATA: DESAIN & ATURAN CETAK A4
 ================================================================================
 */
 
-/* Error message rule: .fErr empty takes NO space and is completely hidden */
+@page {
+  size: A4 portrait;
+  margin: 10mm;
+}
+
+/* Pesan error: jika kosong tidak menempati ruang */
 .fErr {
   color: #dc2626;
   font-size: 0.8125rem;
-  line-height: 1.2;
+  line-height: 1.25rem;
   font-weight: 500;
   margin-top: 0.25rem;
   min-height: 0;
@@ -31,25 +27,70 @@ Design Tokens (as defined in build brief specification):
   padding: 0 !important;
 }
 
-/* Custom <wordlist> custom tag styling */
-wordlist {
+/* Kontainer daftar kata */
+#wordlist, .wordlist, wordlist {
   display: block;
 }
 
-/* Print worksheet optimization */
+/* Pratinjau Kertas A4 di Layar */
+.a4-preview-page {
+  width: 210mm;
+  min-height: 297mm;
+  max-width: 100%;
+  margin: 0 auto;
+  background-color: #ffffff;
+  color: #000000;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+/* Aturan Cetak (Printer / PDF) */
 @media print {
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 11pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   .no-print {
     display: none !important;
   }
-  .print-only {
-    display: block !important;
-  }
-  body {
-    background: #ffffff !important;
-    color: #000000 !important;
-  }
-}
 
-.print-only {
-  display: none;
+  .print-page {
+    display: block !important;
+    width: 190mm !important;
+    height: 277mm !important;
+    max-height: 277mm !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    border: none !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    page-break-after: always;
+    break-after: page;
+    break-inside: avoid;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  .print-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  .print-panel {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    overflow: hidden !important;
+  }
+
+  /* Garis putus-putus untuk guntingan 2 per lembar */
+  .cut-line {
+    border-top: 1.5px dashed #000000 !important;
+  }
 }

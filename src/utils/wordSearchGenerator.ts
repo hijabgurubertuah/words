@@ -1,80 +1,108 @@
-import { PlacedWord, WordSearchResult } from '../types';
+import { WordItem, PuzzleSettings, PlacedWord, GeneratedPuzzle } from '../types';
 
-// High contrast, pleasant highlighter colors for found words
 export const HIGHLIGHT_COLORS = [
-  '#FDE047', // yellow-300
-  '#86EFAC', // green-300
-  '#93C5FD', // blue-300
-  '#FCA5A5', // red-300
-  '#D8B4FE', // purple-300
-  '#FDBA74', // orange-300
-  '#67E8F9', // cyan-300
-  '#F472B6', // pink-400
-  '#A7F3D0', // emerald-200
-  '#C4B5FD', // violet-300
-  '#FDE68A', // amber-200
-  '#BAE6FD', // sky-200
-  '#DDD6FE', // indigo-200
-  '#BBF7D0', // lime-200
-  '#FED7AA', // warm-orange
+  '#FDE047', // kuning lembut
+  '#86EFAC', // hijau lembut
+  '#93C5FD', // biru muda
+  '#FCA5A5', // merah muda
+  '#D8B4FE', // ungu muda
+  '#FDBA74', // oranye lembut
+  '#67E8F9', // sian muda
+  '#F472B6', // pink
+  '#A7F3D0', // zamrud muda
+  '#C4B5FD', // violet
+  '#FDE68A', // amber
+  '#BAE6FD', // langit biru
+  '#DDD6FE', // lavender
+  '#BBF7D0', // limau muda
+  '#FED7AA', // peach
+  '#E9D5FF', // lilac
+  '#FEF08A', // kuning cerah
+  '#99F6E4', // toska
+  '#FECDD3', // mawar
+  '#E2E8F0', // abu cerah
 ];
 
-const DIRECTIONS: [number, number][] = [
-  [0, 1],   // Right
-  [1, 0],   // Down
-  [1, 1],   // Down-Right
-  [-1, 1],  // Up-Right
-  [0, -1],  // Left
-  [-1, 0],  // Up
-  [-1, -1], // Up-Left
-  [1, -1],  // Down-Left
-];
+const INDONESIAN_LETTERS = 'AAAAAAEEEEEEIIIIIOOOOOOUUUUNNNNNRRRRRTTTTSSSSLLLLDDDKKKMMMGGGBBPPYYHHWWFFVVZZJJQQXX';
 
-// Typical English letter distribution for realistic word search filler
-const LETTER_WEIGHTS = 'EEEEEEEEEEEEAAAAAAAAAIIIIIIIIIOOOOOOOONNNNNNRRRRRRTTTTTTLLLLSSSSUUUUDDDDGGGBBCCMMPPFFHHVVWWYYKJXQZ';
-
-export function getRandomFillerLetter(): string {
-  const idx = Math.floor(Math.random() * LETTER_WEIGHTS.length);
-  return LETTER_WEIGHTS[idx];
+export function getRandomLetter(): string {
+  const idx = Math.floor(Math.random() * INDONESIAN_LETTERS.length);
+  return INDONESIAN_LETTERS[idx];
 }
 
 export function shuffleArray<T>(array: T[]): T[] {
-  const arr = [...array];
-  for (let i = arr.length - 1; i > 0; i--) {
+  const copy = [...array];
+  for (let i = copy.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+    [copy[i], copy[j]] = [copy[j], copy[i]];
   }
-  return arr;
+  return copy;
 }
 
-export interface GenerateOptions {
-  words: string[];
-  maxWordsToSelect?: number; // e.g. 10 or 12
-  gridSize?: number;
-}
+export function generatePuzzle(
+  title: string,
+  description: string,
+  words: WordItem[],
+  settings: PuzzleSettings
+): GeneratedPuzzle {
+  let size = Number(settings.gridSize);
+  let sizeAdjustmentNote: string | undefined;
 
-export function generateWordSearch({
-  words,
-  maxWordsToSelect = 12,
-  gridSize,
-}: GenerateOptions): WordSearchResult {
-  // 1. Pick a random subset of words if words > maxWordsToSelect
-  const shuffled = shuffleArray(words);
-  const targetCount = Math.min(words.length, Math.max(10, maxWordsToSelect));
-  const selectedWords = shuffled.slice(0, targetCount);
+  // 1. Pilih acak sejumlah wordCount
+  const shuffledWords = shuffleArray(words);
+  const targetCount = Math.min(words.length, Math.max(8, Math.min(20, settings.wordCount)));
+  let selected = shuffledWords.slice(0, targetCount);
 
-  // 2. Determine grid size
-  const maxWordLen = Math.max(...selectedWords.map(w => w.length), 8);
-  const calculatedSize = Math.max(12, maxWordLen + 1, Math.min(16, Math.ceil(Math.sqrt(selectedWords.join('').length * 2.2))));
-  const size = gridSize || calculatedSize;
+  // 3. Periksa panjang kata terhadap ukuran kotak
+  const maxWordLength = Math.max(...selected.map(w => w.clean.length), 0);
+  if (maxWordLength > size) {
+    if (maxWordLength <= 15 && size < 15) {
+      size = 15;
+      sizeAdjustmentNote = `Ukuran kotak disesuaikan otomatis menjadi 15×15 karena ada kata yang panjangnya lebih dari 12 huruf.`;
+    } else if (maxWordLength <= 18 && size < 18) {
+      size = 18;
+      sizeAdjustmentNote = `Ukuran kotak disesuaikan otomatis menjadi 18×18 karena ada kata yang panjangnya lebih dari 15 huruf.`;
+    } else {
+      // Jika masih ada kata yang lebih panjang dari 18 (meskipun validasi max 14 huruf)
+      size = Math.max(size, maxWordLength);
+    }
+  }
 
-  // Sort words descending by length (longer words placed first reduces collisions)
-  const sortedWords = [...selectedWords].sort((a, b) => b.length - a.length);
+  // Tentukan arah kata yang aktif
+  const directions: [number, number][] = [];
+  const hasHoriz = settings.horizontal;
+  const hasVert = settings.vertical;
+  const hasDiag = settings.diagonal;
+  const allowRev = settings.allowReverse;
 
-  // Retry board generation if we fail to place most words
+  // Jika semua tidak dicentang, aktifkan minimal horizontal & vertical
+  const safeHoriz = hasHoriz || (!hasHoriz && !hasVert && !hasDiag);
+  const safeVert = hasVert || (!hasHoriz && !hasVert && !hasDiag);
+
+  if (safeHoriz) {
+    directions.push([0, 1]); // Kanan
+    if (allowRev) directions.push([0, -1]); // Kiri
+  }
+  if (safeVert) {
+    directions.push([1, 0]); // Bawah
+    if (allowRev) directions.push([-1, 0]); // Atas
+  }
+  if (hasDiag) {
+    directions.push([1, 1]);  // Menurun ke kanan
+    directions.push([-1, 1]); // Menaik ke kanan
+    if (allowRev) {
+      directions.push([-1, -1]); // Menaik ke kiri
+      directions.push([1, -1]);  // Menurun ke kiri
+    }
+  }
+
+  // Urutkan kata dari yang terpanjang
+  const sortedWords = [...selected].sort((a, b) => b.clean.length - a.clean.length);
+
+  // Coba susun hingga 50 kali
   let bestResult: { grid: (string | null)[][]; placed: PlacedWord[]; unplaced: string[] } | null = null;
 
-  for (let attempt = 0; attempt < 15; attempt++) {
+  for (let attempt = 0; attempt < 50; attempt++) {
     const grid: (string | null)[][] = Array.from({ length: size }, () =>
       Array.from({ length: size }, () => null)
     );
@@ -83,11 +111,11 @@ export function generateWordSearch({
 
     let colorIdx = 0;
 
-    for (const word of sortedWords) {
+    for (const item of sortedWords) {
+      const cleanWord = item.clean;
       let wordPlaced = false;
-      const shuffledDirections = shuffleArray(DIRECTIONS);
 
-      // Collect all possible starting coordinates and shuffle
+      // Kumpulkan semua kemungkinan posisi awal dan acak
       const coords: [number, number][] = [];
       for (let r = 0; r < size; r++) {
         for (let c = 0; c < size; c++) {
@@ -95,48 +123,46 @@ export function generateWordSearch({
         }
       }
       const shuffledCoords = shuffleArray(coords);
+      const shuffledDirs = shuffleArray(directions);
 
-      // Try directions and coords
       for (const [r, c] of shuffledCoords) {
         if (wordPlaced) break;
-        for (const [dr, dc] of shuffledDirections) {
-          const endR = r + (word.length - 1) * dr;
-          const endC = c + (word.length - 1) * dc;
+        for (const [dr, dc] of shuffledDirs) {
+          const endR = r + (cleanWord.length - 1) * dr;
+          const endC = c + (cleanWord.length - 1) * dc;
 
           if (endR < 0 || endR >= size || endC < 0 || endC >= size) {
-            continue; // Out of bounds
+            continue;
           }
 
-          // Check if placement is valid
           let canPlace = true;
           const cells: [number, number][] = [];
-          for (let i = 0; i < word.length; i++) {
-            const currR = r + i * dr;
-            const currC = c + i * dc;
-            const cellVal = grid[currR][currC];
-            if (cellVal !== null && cellVal !== word[i]) {
+          for (let i = 0; i < cleanWord.length; i++) {
+            const curR = r + i * dr;
+            const curC = c + i * dc;
+            const existing = grid[curR][curC];
+            if (existing !== null && existing !== cleanWord[i]) {
               canPlace = false;
               break;
             }
-            cells.push([currR, currC]);
+            cells.push([curR, curC]);
           }
 
           if (canPlace) {
-            // Commit to grid
-            for (let i = 0; i < word.length; i++) {
-              const currR = r + i * dr;
-              const currC = c + i * dc;
-              grid[currR][currC] = word[i];
+            for (let i = 0; i < cleanWord.length; i++) {
+              const curR = r + i * dr;
+              const curC = c + i * dc;
+              grid[curR][curC] = cleanWord[i];
             }
 
             placed.push({
-              word,
+              originalText: item.original,
+              word: cleanWord,
               start: [r, c],
               end: [endR, endC],
               cells,
               color: HIGHLIGHT_COLORS[colorIdx % HIGHLIGHT_COLORS.length],
               found: false,
-              hintLevel: 0,
             });
             colorIdx++;
             wordPlaced = true;
@@ -146,7 +172,7 @@ export function generateWordSearch({
       }
 
       if (!wordPlaced) {
-        unplaced.push(word);
+        unplaced.push(item.original);
       }
     }
 
@@ -155,18 +181,23 @@ export function generateWordSearch({
     }
 
     if (unplaced.length === 0) {
-      break; // All words successfully placed!
+      break;
     }
   }
 
-  const finalGrid = bestResult!.grid.map(row =>
-    row.map(cell => (cell !== null ? cell : getRandomFillerLetter()))
+  // 4. Isi sel kosong dengan huruf acak
+  const finalGrid: string[][] = bestResult!.grid.map(row =>
+    row.map(cell => (cell !== null ? cell : getRandomLetter()))
   );
 
   return {
+    id: 'puz_' + Math.random().toString(36).substring(2, 9),
+    title,
+    description,
     grid: finalGrid,
     size,
     placedWords: bestResult!.placed,
     unplacedWords: bestResult!.unplaced,
+    sizeAdjustmentNote,
   };
 }

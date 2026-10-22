@@ -1,46 +1,42 @@
-import React from 'react';
+export interface WordItem {
+  original: string; // Bentuk asli dengan spasi/tanda hubung
+  clean: string;    // Huruf kapital tanpa spasi dan tanda hubung
+}
 
-export interface SavedPuzzle {
+export interface PuzzleSettings {
+  gridSize: 12 | 15 | 18;
+  wordCount: number; // 8 - 20, default 10
+  horizontal: boolean; // default true
+  vertical: boolean;   // default true
+  diagonal: boolean;   // default true
+  allowReverse: boolean; // default false
+}
+
+export interface PlacedWord {
+  originalText: string;
+  word: string; // clean uppercase
+  start: [number, number]; // [row, col]
+  end: [number, number];   // [row, col]
+  cells: [number, number][]; // semua [row, col]
+  color: string;
+  found: boolean;
+}
+
+export interface GeneratedPuzzle {
   id: string;
   title: string;
   description: string;
-  words: string[]; // Cleaned uppercase words
-  createdAt: number;
-  lastPlayedAt?: number;
-}
-
-export type Direction = [number, number]; // [dRow, dCol]
-
-export interface PlacedWord {
-  word: string;
-  originalText?: string;
-  start: [number, number]; // [row, col]
-  end: [number, number];   // [row, col]
-  cells: [number, number][]; // all [row, col]
-  color: string;
-  found: boolean;
-  hintLevel: number; // 0 = none, 1 = first letter, 2 = direction, 3 = row/col
-}
-
-export interface WordSearchResult {
   grid: string[][];
   size: number;
   placedWords: PlacedWord[];
   unplacedWords: string[];
+  sizeAdjustmentNote?: string;
 }
 
-declare module 'react' {
-  namespace JSX {
-    interface IntrinsicElements {
-      wordlist: React.HTMLAttributes<HTMLElement>;
-    }
-  }
+export interface PrintSettings {
+  layout: '1_per_page' | '2_per_page';
+  twoPuzzleMode: 'different' | 'duplicate';
+  includeAnswerKey: boolean;
+  includeNameClass: boolean;
 }
 
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      wordlist: React.HTMLAttributes<HTMLElement>;
-    }
-  }
-}

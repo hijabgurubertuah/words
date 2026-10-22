@@ -1,6 +1,6 @@
 {
-  "name": "Word Search Puzzle Maker",
-  "description": "Create custom themed word search puzzles with live validation, randomized grid generation, interactive gameplay, and printable sheets.",
+  "name": "Pembuat Puzzle Cari Kata",
+  "description": "Aplikasi pembuat puzzle cari kata acak untuk guru dan siswa, dapat dimainkan langsung di layar atau dicetak di kertas A4.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

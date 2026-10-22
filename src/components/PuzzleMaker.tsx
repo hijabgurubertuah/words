@@ -1,106 +1,110 @@
-import React, { useState, useEffect } from 'react';
-import { SavedPuzzle } from '../types';
-import { Sparkles, Trash2, CheckCircle2, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { WordItem, PuzzleSettings } from '../types';
 
 interface Props {
-  initialPuzzle?: SavedPuzzle | null;
-  onManageClick: (e: React.MouseEvent) => void;
-  onSubmitSuccess: (puzzle: SavedPuzzle) => void;
+  initialTitle?: string;
+  initialDesc?: string;
+  initialWords?: string[];
+  initialSettings?: PuzzleSettings;
+  onSubmit: (title: string, desc: string, words: WordItem[], settings: PuzzleSettings) => void;
 }
 
+const DRAFT_STORAGE_KEY = 'cari_kata_draft_v2';
+
 export const PuzzleMaker: React.FC<Props> = ({
-  initialPuzzle,
-  onManageClick,
-  onSubmitSuccess,
+  initialTitle,
+  initialDesc,
+  initialWords,
+  initialSettings,
+  onSubmit,
 }) => {
-  // Title & description state
-  const [title, setTitle] = useState<string>('');
-  const [desc, setDesc] = useState<string>('');
+  // Load draft dari localStorage jika ada
+  const loadDraft = () => {
+    try {
+      const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // Abaikan jika localStorage tidak tersedia
+    }
+    return null;
+  };
 
-  // Exactly 30 word input slots (wrd0 to wrd29)
-  const [wordInputs, setWordInputs] = useState<string[]>(() => Array(30).fill(''));
+  const draft = loadDraft();
 
-  // Error state mapping
+  const [title, setTitle] = useState<string>(() => initialTitle ?? draft?.title ?? '');
+  const [desc, setDesc] = useState<string>(() => initialDesc ?? draft?.desc ?? '');
+  const [wordInputs, setWordInputs] = useState<string[]>(() => {
+    if (initialWords && initialWords.length > 0) {
+      const arr = Array(30).fill('');
+      initialWords.forEach((w, i) => {
+        if (i < 30) arr[i] = w;
+      });
+      return arr;
+    }
+    if (draft?.words && Array.isArray(draft.words)) {
+      return draft.words;
+    }
+    return Array(30).fill('');
+  });
+
+  const [settings, setSettings] = useState<PuzzleSettings>(() => {
+    return (
+      initialSettings ??
+      draft?.settings ?? {
+        gridSize: 15,
+        wordCount: 10,
+        horizontal: true,
+        vertical: true,
+        diagonal: true,
+        allowReverse: false,
+      }
+    );
+  });
+
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // Error states
   const [titleErr, setTitleErr] = useState<string>('');
   const [descErr, setDescErr] = useState<string>('');
   const [wordErrs, setWordErrs] = useState<string[]>(() => Array(30).fill(''));
   const [listErr, setListErr] = useState<string>('');
 
-  // Success notification after submission
-  const [submittedPuzzle, setSubmittedPuzzle] = useState<SavedPuzzle | null>(null);
+  // Refs untuk scrolling ke error pertama
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const descInputRef = useRef<HTMLTextAreaElement>(null);
+  const wordInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const listErrRef = useRef<HTMLDivElement>(null);
 
-  // If editing an existing puzzle, populate initial state
+  // Simpan draf ke localStorage (try/catch)
   useEffect(() => {
-    if (initialPuzzle) {
-      setTitle(initialPuzzle.title);
-      setDesc(initialPuzzle.description);
-      const newWords = Array(30).fill('');
-      initialPuzzle.words.forEach((w, idx) => {
-        if (idx < 30) newWords[idx] = w;
-      });
-      setWordInputs(newWords);
-      setSubmittedPuzzle(null);
+    try {
+      localStorage.setItem(
+        DRAFT_STORAGE_KEY,
+        JSON.stringify({
+          title,
+          desc,
+          words: wordInputs,
+          settings,
+        })
+      );
+    } catch {
+      // Abaikan jika localStorage dibatasi
     }
-  }, [initialPuzzle]);
+  }, [title, desc, wordInputs, settings]);
 
-  // Handle single word input change
-  const handleWordChange = (index: number, value: string) => {
+  const handleWordChange = (index: number, val: string) => {
     const updated = [...wordInputs];
-    updated[index] = value;
+    updated[index] = val;
     setWordInputs(updated);
 
-    // Clear error for this specific row when user edits
     if (wordErrs[index]) {
-      const updatedErrs = [...wordErrs];
-      updatedErrs[index] = '';
-      setWordErrs(updatedErrs);
+      const errs = [...wordErrs];
+      errs[index] = '';
+      setWordErrs(errs);
     }
     if (listErr) setListErr('');
   };
 
-  // Preset themes to easily test and populate 12-15 words
-  const fillPreset = (theme: 'rainforest' | 'space' | 'culinary') => {
-    let presetTitle = '';
-    let presetDesc = '';
-    let words: string[] = [];
-
-    if (theme === 'rainforest') {
-      presetTitle = 'Rainforest Wildlife';
-      presetDesc = 'Fascinating animals and birds living in the lush tropical rainforest.';
-      words = [
-        'Jaguar', 'Toucan', 'Anaconda', 'Sloth', 'Chameleon',
-        'Piranha', 'Macaw', 'Ocelot', 'Tree Frog', 'Capybara',
-        'Armadillo', 'Gorilla', 'Hornbill', 'Iguana', 'Tapir'
-      ];
-    } else if (theme === 'space') {
-      presetTitle = 'Solar System & Cosmos';
-      presetDesc = 'Planets, cosmic bodies, and astronomical phenomena of deep space.';
-      words = [
-        'Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter',
-        'SatURN', 'Uranus', 'Neptune', 'Asteroid', 'Comet',
-        'Nebula', 'Supernova', 'Galaxy', 'Telescope', 'Eclipse'
-      ];
-    } else {
-      presetTitle = 'Indonesian Culinary Heritage';
-      presetDesc = 'Delicious traditional dishes and culinary delicacies from Indonesia.';
-      words = [
-        'Rendang', 'Sate Ayam', 'Nasi Goreng', 'Gado Gado', 'Soto Betawi',
-        'Bakso', 'Pempek', 'Rawon', 'Martabak', 'Gudeg',
-        'Klepon', 'Lontong', 'Ayam Betutu', 'Opor Ayam', 'Serabi'
-      ];
-    }
-
-    setTitle(presetTitle);
-    setDesc(presetDesc);
-    const newWordList = Array(30).fill('');
-    words.forEach((w, i) => {
-      newWordList[i] = w;
-    });
-    setWordInputs(newWordList);
-    clearAllErrors();
-  };
-
-  // Clear all errors
   const clearAllErrors = () => {
     setTitleErr('');
     setDescErr('');
@@ -108,336 +112,237 @@ export const PuzzleMaker: React.FC<Props> = ({
     setListErr('');
   };
 
-  // Clear entire form
-  const handleResetForm = () => {
-    setTitle('');
-    setDesc('');
-    setWordInputs(Array(30).fill(''));
-    clearAllErrors();
-    setSubmittedPuzzle(null);
-  };
+  const filledCount = wordInputs.filter(w => w.trim().length > 0).length;
 
-  // Form submission and validation logic according to brief rules
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    // 7. Clear all previous errors
     clearAllErrors();
 
     let hasError = false;
+    let firstErrorElement: HTMLElement | null = null;
+
     let newTitleErr = '';
     let newDescErr = '';
     const newWordErrs = Array(30).fill('');
     let newListErr = '';
 
-    // 2. Title validation: required after trim
+    // 1. Judul wajib diisi
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
-      newTitleErr = 'Please enter a title.';
+      newTitleErr = 'Judul wajib diisi.';
       hasError = true;
-    } else if (trimmedTitle.length > 70) {
-      newTitleErr = 'Title must be 70 characters or fewer.';
-      hasError = true;
+      if (!firstErrorElement && titleInputRef.current) {
+        firstErrorElement = titleInputRef.current;
+      }
     }
 
-    // 2. Description validation: required after trim
+    // 2. Deskripsi wajib diisi
     const trimmedDesc = desc.trim();
     if (!trimmedDesc) {
-      newDescErr = 'Please enter a description.';
+      newDescErr = 'Deskripsi wajib diisi.';
       hasError = true;
-    } else if (trimmedDesc.length > 350) {
-      newDescErr = 'Description must be 350 characters or fewer.';
-      hasError = true;
+      if (!firstErrorElement && descInputRef.current) {
+        firstErrorElement = descInputRef.current;
+      }
     }
 
-    // 3. Collect non-empty words
+    // 3. Kumpulkan kata terisi
     const filledIndices: number[] = [];
-    const cleanedWordsMap: { [index: number]: string } = {};
+    const validWordItems: { idx: number; original: string; clean: string }[] = [];
 
     wordInputs.forEach((raw, idx) => {
       const trimmed = raw.trim();
       if (trimmed.length > 0) {
         filledIndices.push(idx);
 
-        // 5. Word validation:
-        // Rule: Only a-z (case insensitive) and max 2 spaces or dashes
-        const spacesAndDashesCount = (trimmed.match(/[\s-]/g) || []).length;
-        if (spacesAndDashesCount > 2) {
-          newWordErrs[idx] = 'Words can only contain a maximum of two spaces or dashes.';
-          hasError = true;
-          return;
-        }
-
-        // Rule: Only letters a-z, spaces, and dashes allowed
+        // a. Selain huruf a–z, spasi, dan "-"
         if (/[^a-zA-Z\s-]/.test(trimmed)) {
-          newWordErrs[idx] = 'Words can only contain the letters a-z and up to two spaces or dashes.';
+          newWordErrs[idx] = 'Hanya boleh huruf a–z.';
           hasError = true;
+          if (!firstErrorElement && wordInputRefs.current[idx]) {
+            firstErrorElement = wordInputRefs.current[idx];
+          }
           return;
         }
 
-        // Rule: After spaces & dashes removed, max 14 letters
-        const cleaned = trimmed.replace(/[\s-]/g, '').toUpperCase();
-        if (cleaned.length === 0) {
-          newWordErrs[idx] = 'Word cannot be only spaces or dashes.';
+        // b. Lebih dari dua spasi/tanda hubung
+        const spacesAndDashes = (trimmed.match(/[\s-]/g) || []).length;
+        if (spacesAndDashes > 2) {
+          newWordErrs[idx] = 'Maksimal dua spasi atau tanda hubung.';
           hasError = true;
+          if (!firstErrorElement && wordInputRefs.current[idx]) {
+            firstErrorElement = wordInputRefs.current[idx];
+          }
           return;
         }
 
-        if (cleaned.length > 14) {
-          newWordErrs[idx] = 'Words can have a maximum length of 14 letters.';
+        // c. Setelah spasi dan tanda hubung dibuang, max 14 huruf
+        const clean = trimmed.replace(/[\s-]/g, '').toUpperCase();
+        if (clean.length === 0) {
+          newWordErrs[idx] = 'Hanya boleh huruf a–z.';
           hasError = true;
+          if (!firstErrorElement && wordInputRefs.current[idx]) {
+            firstErrorElement = wordInputRefs.current[idx];
+          }
           return;
         }
 
-        if (cleaned.length < 2) {
-          newWordErrs[idx] = 'Word must contain at least 2 letters.';
+        if (clean.length > 14) {
+          newWordErrs[idx] = 'Maksimal 14 huruf.';
           hasError = true;
+          if (!firstErrorElement && wordInputRefs.current[idx]) {
+            firstErrorElement = wordInputRefs.current[idx];
+          }
           return;
         }
 
-        cleanedWordsMap[idx] = cleaned;
+        validWordItems.push({ idx, original: trimmed, clean });
       }
     });
 
-    // Check for duplicate words in the list
-    const seenWords = new Map<string, number>();
-    filledIndices.forEach(idx => {
-      const clean = cleanedWordsMap[idx];
-      if (clean) {
-        if (seenWords.has(clean)) {
-          newWordErrs[idx] = 'Duplicate word in list.';
-          hasError = true;
-        } else {
-          seenWords.set(clean, idx);
+    // d. Duplikat: "Kata sudah dipakai."
+    const seenMap = new Map<string, number>();
+    validWordItems.forEach(item => {
+      if (seenMap.has(item.clean)) {
+        newWordErrs[item.idx] = 'Kata sudah dipakai.';
+        hasError = true;
+        if (!firstErrorElement && wordInputRefs.current[item.idx]) {
+          firstErrorElement = wordInputRefs.current[item.idx];
         }
+      } else {
+        seenMap.set(item.clean, item.idx);
       }
     });
 
-    // 4. List size check: Must be between 10 and 30 words
+    // 4. Kurang dari 10 kata terisi
     if (filledIndices.length < 10) {
-      newListErr = 'Please enter at least 10 words.';
+      newListErr = 'Isi minimal 10 kata.';
       hasError = true;
+      if (!firstErrorElement && listErrRef.current) {
+        firstErrorElement = listErrRef.current;
+      }
     }
 
-    // Apply error states if any
+    // 6. Jika ada satu saja error, batalkan dan gulir ke error pertama
     if (hasError) {
       setTitleErr(newTitleErr);
       setDescErr(newDescErr);
       setWordErrs(newWordErrs);
       setListErr(newListErr);
+
+      if (firstErrorElement) {
+        firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        firstErrorElement.focus?.();
+      }
       return;
     }
 
-    // 6. When saved: strip all spaces and dashes, convert to UPPERCASE
-    const finalWords = filledIndices.map(idx => cleanedWordsMap[idx]);
+    // Lolos: normalisasi kata dan kirim
+    setIsSubmitting(true);
+    const finalWords: WordItem[] = validWordItems.map(item => ({
+      original: item.original,
+      clean: item.clean,
+    }));
 
-    // 8. Call placeholder submitPuzzle
-    const puzzlePayload = {
-      title: trimmedTitle,
-      description: trimmedDesc,
-      words: finalWords,
-    };
-
-    const saved = submitPuzzle(puzzlePayload);
-    setSubmittedPuzzle(saved);
-    onSubmitSuccess(saved);
+    // Beri jeda kecil agar tombol nonaktif sebentar saat puzzle dibuat
+    setTimeout(() => {
+      setIsSubmitting(false);
+      onSubmit(trimmedTitle, trimmedDesc, finalWords, settings);
+    }, 250);
   };
-
-  /**
-   * Placeholder function as requested in technical constraints:
-   * "Backend penyimpanan puzzle tidak termasuk. Siapkan fungsi submitPuzzle(data) sebagai placeholder."
-   */
-  const submitPuzzle = (data: { title: string; description: string; words: string[] }): SavedPuzzle => {
-    // In our client implementation, we persist into localStorage so the user can immediately play!
-    const STORAGE_KEY = 'word_search_puzzles_v1';
-    let existing: SavedPuzzle[] = [];
-    try {
-      existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    } catch {
-      existing = [];
-    }
-
-    const newRecord: SavedPuzzle = {
-      id: 'pz_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
-      title: data.title,
-      description: data.description,
-      words: data.words,
-      createdAt: Date.now(),
-    };
-
-    const updated = [newRecord, ...existing];
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    return newRecord;
-  };
-
-  const filledWordCount = wordInputs.filter(w => w.trim().length > 0).length;
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      {/* Success banner if just submitted */}
-      {submittedPuzzle && (
-        <div className="mb-8 p-5 bg-emerald-50 border border-emerald-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fadeIn">
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-emerald-900">
-                Puzzle "{submittedPuzzle.title}" created successfully!
-              </p>
-              <p className="text-xs text-emerald-700 mt-0.5">
-                {submittedPuzzle.words.length} words saved. Ready for randomized online play.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => onSubmitSuccess(submittedPuzzle)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors shadow-sm"
-            >
-              Play Now
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => setSubmittedPuzzle(null)}
-              className="px-2.5 py-1.5 text-xs font-medium text-emerald-800 hover:text-emerald-950"
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Preset Theme Quick Load Helpers (Extra convenience) */}
-      <div className="mb-6 p-3 bg-white rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-1.5 text-slate-600">
-          <Sparkles className="w-4 h-4 text-blue-500" />
-          <span className="font-medium text-slate-800">Quick Fill Sample Themes:</span>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => fillPreset('rainforest')}
-            className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-md transition-colors"
-          >
-            🌿 Rainforest
-          </button>
-          <button
-            type="button"
-            onClick={() => fillPreset('space')}
-            className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-md transition-colors"
-          >
-            🚀 Solar System
-          </button>
-          <button
-            type="button"
-            onClick={() => fillPreset('culinary')}
-            className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-md transition-colors"
-          >
-            🍲 Indonesian Food
-          </button>
-          <button
-            type="button"
-            onClick={handleResetForm}
-            className="p-1 text-slate-400 hover:text-red-600 rounded ml-1 transition-colors"
-            title="Clear form"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
+    <div className="max-w-4xl mx-auto px-4 py-8">
+      {/* 1. Judul Halaman */}
+      <div className="mb-6 text-center sm:text-left">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+          Pembuat Puzzle Cari Kata
+        </h1>
+        <p className="text-sm text-slate-600 mt-1">
+          Buat lembar puzzle bertema secara acak untuk dimainkan siswa di layar atau dicetak di kertas A4.
+        </p>
       </div>
 
-      {/* 
-        Exact DOM Structure as specified in brief:
-        <section id="maker">
-        Satu kolom vertikal, dari atas ke bawah:
-        1. #mHead: tautan "Manage existing puzzles here" menuju /maker/?manage=1
-        2. #mTitle: label "Title", input teks satu baris, lalu div.fErr
-        3. #mDesc: label "Description", textarea, lalu div.fErr
-        4. #mWords: label "Word List", paragraf tanpa margin, <wordlist> dengan #wrd0..#wrd29 dan div.fErr, lalu div.fErr.fLast
-        5. Paragraf peringatan: "❗ Do not add personal information into online puzzles."
-        6. Tombol #mSubmit berlabel "Submit"
-        7. #mInstructions: heading h3 "Instructions" dan daftar ul 5 butir
-      */}
-      <section id="maker" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8">
+      <section id="maker" className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 sm:p-8">
         <form onSubmit={handleSubmit} noValidate>
-          {/* 1. #mHead */}
-          <div className="mb-6">
-            <a
-              id="mHead"
-              href="/maker/?manage=1"
-              onClick={onManageClick}
-              className="text-sm font-semibold text-blue-600 hover:text-blue-800 hover:underline transition-colors inline-block"
-            >
-              Manage existing puzzles here
-            </a>
-          </div>
-
-          {/* 2. #mTitle */}
+          {/* 2. Judul */}
           <div id="mTitle" className="mb-5">
             <label htmlFor="puzzleTitleInput" className="block text-sm font-semibold text-slate-900 mb-1.5">
-              Title
+              Judul
             </label>
             <input
               id="puzzleTitleInput"
+              ref={titleInputRef}
               type="text"
               value={title}
+              aria-describedby={titleErr ? 'titleError' : undefined}
+              aria-invalid={Boolean(titleErr)}
               onChange={(e) => {
                 setTitle(e.target.value);
                 if (titleErr) setTitleErr('');
               }}
-              placeholder="e.g. Rainforest Animals, 80s Rock Bands"
+              placeholder="Contoh: Sistem Pencernaan Manusia, Tata Surya"
               className={`
                 w-full px-3.5 py-2 text-sm text-slate-900 bg-white border rounded-lg 
                 shadow-2xs transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500
                 ${titleErr ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-300 hover:border-slate-400'}
               `}
             />
-            <div className="fErr">{titleErr}</div>
+            <div id="titleError" className="fErr">
+              {titleErr}
+            </div>
           </div>
 
-          {/* 3. #mDesc */}
+          {/* 3. Deskripsi */}
           <div id="mDesc" className="mb-6">
             <label htmlFor="puzzleDescInput" className="block text-sm font-semibold text-slate-900 mb-1.5">
-              Description
+              Deskripsi
             </label>
             <textarea
               id="puzzleDescInput"
+              ref={descInputRef}
               rows={3}
               value={desc}
+              aria-describedby={descErr ? 'descError' : undefined}
+              aria-invalid={Boolean(descErr)}
               onChange={(e) => {
                 setDesc(e.target.value);
                 if (descErr) setDescErr('');
               }}
-              placeholder="Describe the theme or give clues to players..."
+              placeholder="Berikan petunjuk atau pengantar tema materi bagi siswa..."
               className={`
                 w-full px-3.5 py-2 text-sm text-slate-900 bg-white border rounded-lg 
                 shadow-2xs transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500
                 ${descErr ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-300 hover:border-slate-400'}
               `}
             />
-            <div className="fErr">{descErr}</div>
+            <div id="descError" className="fErr">
+              {descErr}
+            </div>
           </div>
 
-          {/* 4. #mWords */}
+          {/* 4 & 5. Daftar Kata (30 baris) */}
           <div id="mWords" className="mb-6">
             <div className="flex items-center justify-between mb-1">
               <label className="block text-sm font-semibold text-slate-900">
-                Word List
+                Daftar Kata
               </label>
               <span className="text-xs font-mono text-slate-500">
-                {filledWordCount} of 30 words filled {filledWordCount >= 10 ? '✓' : '(min 10)'}
+                {filledCount} dari 30 terisi {filledCount >= 10 ? '✓' : '(minimal 10)'}
               </span>
             </div>
 
-            {/* Paragraph without margin: exact copy */}
+            {/* Teks bantu persis sesuai brief */}
             <p style={{ margin: 0 }} className="text-xs text-slate-500 mb-3">
-              Between 10 and 30 words. Puzzles are randomly generated using a selection of your words at play time.
+              Isi 10 sampai 30 kata. Puzzle dibuat secara acak memakai sebagian kata dari daftar Anda.
             </p>
 
-            {/* Custom <wordlist> with exactly 30 div.word from wrd0 to wrd29 */}
-            <wordlist className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+            {/* 30 kolom input kata (2 atau 3 kolom di layar lebar, 1 di layar kecil) */}
+            <div id="wordlist" className="wordlist grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
               {wordInputs.map((val, idx) => {
                 const rowId = `wrd${idx}`;
-                const hasRowErr = Boolean(wordErrs[idx]);
+                const errorId = `err_${rowId}`;
+                const hasErr = Boolean(wordErrs[idx]);
 
                 return (
                   <div key={rowId} id={rowId} className="word">
@@ -446,56 +351,178 @@ export const PuzzleMaker: React.FC<Props> = ({
                         {(idx + 1).toString().padStart(2, '0')}.
                       </span>
                       <input
+                        ref={(el) => {
+                          wordInputRefs.current[idx] = el;
+                        }}
                         type="text"
                         value={val}
+                        id={`input_${rowId}`}
+                        aria-label={`Kata ${idx + 1}`}
+                        aria-describedby={hasErr ? errorId : undefined}
+                        aria-invalid={hasErr}
                         onChange={(e) => handleWordChange(idx, e.target.value)}
-                        placeholder={`Word ${idx + 1}`}
+                        placeholder={`Kata ${idx + 1}`}
                         className={`
                           w-full pl-8 pr-2.5 py-1.5 text-xs sm:text-sm font-medium text-slate-900 
                           bg-white border rounded-lg shadow-2xs transition-colors
                           focus:outline-none focus:ring-2 focus:ring-blue-500
-                          ${hasRowErr ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-300 hover:border-slate-400'}
+                          ${hasErr ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-300 hover:border-slate-400'}
                         `}
                       />
                     </div>
-                    {/* Error container for this word: empty .fErr takes 0 space */}
-                    <div className="fErr">{wordErrs[idx]}</div>
+                    <div id={errorId} className="fErr">
+                      {wordErrs[idx]}
+                    </div>
                   </div>
                 );
               })}
-            </wordlist>
+            </div>
 
-            {/* List-level error container: empty .fErr.fLast takes 0 space */}
-            <div className="fErr fLast mt-2">{listErr}</div>
+            {/* Area error di bawah daftar */}
+            <div ref={listErrRef} className="fErr fLast mt-2">
+              {listErr}
+            </div>
           </div>
 
-          {/* 5. Warning paragraph: exact copy */}
-          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200/80 rounded-lg p-2.5 mb-6">
-            ❗ Do not add personal information into online puzzles.
+          {/* 6. Pengaturan puzzle (blok kecil) */}
+          <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-3">
+              Pengaturan Puzzle
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Ukuran kotak */}
+              <div>
+                <label htmlFor="gridSizeSelect" className="block text-xs font-semibold text-slate-800 mb-1">
+                  Ukuran kotak
+                </label>
+                <select
+                  id="gridSizeSelect"
+                  value={settings.gridSize}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      gridSize: Number(e.target.value) as 12 | 15 | 18,
+                    }))
+                  }
+                  className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                >
+                  <option value={12}>12 × 12 (Ringkas)</option>
+                  <option value={15}>15 × 15 (Standar - Default)</option>
+                  <option value={18}>18 × 18 (Lebar)</option>
+                </select>
+              </div>
+
+              {/* Jumlah kata dalam puzzle */}
+              <div>
+                <label htmlFor="wordCountInput" className="block text-xs font-semibold text-slate-800 mb-1">
+                  Jumlah kata dalam puzzle
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="wordCountInput"
+                    type="number"
+                    min={8}
+                    max={Math.max(8, Math.min(20, filledCount || 20))}
+                    value={settings.wordCount}
+                    onChange={(e) => {
+                      const val = Math.max(8, Math.min(20, Number(e.target.value)));
+                      setSettings((prev) => ({ ...prev, wordCount: val }));
+                    }}
+                    className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                  <span className="text-[11px] text-slate-500 whitespace-nowrap">
+                    (8–20, maks kata terisi)
+                  </span>
+                </div>
+              </div>
+
+              {/* Arah kata */}
+              <div>
+                <span className="block text-xs font-semibold text-slate-800 mb-1">
+                  Arah kata
+                </span>
+                <div className="grid grid-cols-2 gap-1.5 text-xs text-slate-700">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.horizontal}
+                      onChange={(e) =>
+                        setSettings((prev) => ({ ...prev, horizontal: e.target.checked }))
+                      }
+                      className="rounded text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Mendatar</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.vertical}
+                      onChange={(e) =>
+                        setSettings((prev) => ({ ...prev, vertical: e.target.checked }))
+                      }
+                      className="rounded text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Menurun</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.diagonal}
+                      onChange={(e) =>
+                        setSettings((prev) => ({ ...prev, diagonal: e.target.checked }))
+                      }
+                      className="rounded text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Diagonal</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.allowReverse}
+                      onChange={(e) =>
+                        setSettings((prev) => ({ ...prev, allowReverse: e.target.checked }))
+                      }
+                      className="rounded text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Boleh terbalik</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 7. Peringatan persis sesuai brief */}
+          <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200/80 rounded-lg p-2.5 mb-6">
+            ❗ Jangan memasukkan data pribadi ke dalam puzzle.
           </p>
 
-          {/* 6. Button #mSubmit */}
+          {/* 8. Tombol Utama "Buat Puzzle" */}
           <div className="mb-8">
             <button
               id="mSubmit"
               type="submit"
-              className="w-full sm:w-auto px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
+              disabled={isSubmitting}
+              className="w-full sm:w-auto px-7 py-3 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer disabled:opacity-50"
             >
-              Submit
+              {isSubmitting ? 'Sedang Membuat Puzzle...' : 'Buat Puzzle'}
             </button>
           </div>
 
-          {/* 7. #mInstructions */}
+          {/* 9. Kotak Petunjuk persis sesuai brief */}
           <div id="mInstructions" className="pt-6 border-t border-slate-200">
             <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">
-              Instructions
+              Petunjuk
             </h3>
             <ul className="text-xs text-slate-600 space-y-2 list-disc list-inside">
-              <li>To create a word search puzzle you must supply a word list of at least 10 words.</li>
-              <li>The word list should be based on a single theme or topic. For example a television show or a movie you enjoy.</li>
-              <li>Words can only contain the letters a-z and a maximum of two spaces or dashes. Spaces and dashes will be removed when words are added to the word search grid.</li>
-              <li>Words can have a maximum length of 14 letters</li>
-              <li>All puzzles created will be playable on the site, will be deleted automatically after 60 days of inactivity</li>
+              <li>Untuk membuat puzzle, isi daftar kata minimal 10 kata.</li>
+              <li>
+                Daftar kata sebaiknya bertema satu topik, misalnya materi IPA seperti sistem pencernaan atau tata surya.
+              </li>
+              <li>
+                Kata hanya boleh berisi huruf a–z dan maksimal dua spasi atau tanda hubung. Spasi dan tanda hubung dihapus saat kata dimasukkan ke kotak puzzle.
+              </li>
+              <li>Panjang kata maksimal 14 huruf.</li>
             </ul>
           </div>
         </form>
